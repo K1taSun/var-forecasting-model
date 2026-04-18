@@ -17,18 +17,17 @@ const Dashboard = () => {
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                // Odpytujemy backend o bazowe
                 const histRes = await axios.get(`${API_URL}/historical-data`);
                 const foreRes = await axios.get(`${API_URL}/forecast`);
                 
-                // Łączymy w jedną tablicę do wykresu (wykres sam połączy linie o ile klucz XAxis się zgadza)
-                const fullSeries = [...histRes.data, ...foreRes.data];
+                const hData = Array.isArray(histRes.data) ? histRes.data : [];
+                const fData = Array.isArray(foreRes.data) ? foreRes.data : [];
                 
-                setData(fullSeries);
-                setOriginalForecast(foreRes.data); // Kopia na wypadek powrotu do bazy bez zapytań
-                setLoading(false);
+                setData([...hData, ...fData]);
+                setOriginalForecast(fData);
             } catch (err) {
-                console.error("Błąd ładowania danych startowych (studencki tip: czy uvicorn na pewno działa?)", err);
+                console.error("Błąd API:", err);
+            } finally {
                 setLoading(false);
             }
         };
@@ -58,6 +57,14 @@ const Dashboard = () => {
     };
 
     if (loading) return <div className="loader">Trwa pobieranie modelu VAR...</div>;
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="dashboard loader">
+                 Błąd: Brak danych do wyświetlenia. Odpal najpierw skrypt fetchera i upewnij się, że backend działa.
+            </div>
+        );
+    }
 
     // Szukamy punktu odcięcia (gdzie zaczyna się predykcja) by narysować linię
     const forecastStartObj = data.find(d => d.is_forecast);
@@ -104,22 +111,22 @@ const Dashboard = () => {
                     <ResponsiveContainer>
                         <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                            <XAxis dataKey="date" tick={{fill: '#ddd'}} />
+                            <XAxis dataKey="date" tick={{fill: '#ddd'}} type="category" allowDuplicatedCategory={false} />
                             <YAxis yAxisId="left" tick={{fill: '#ddd'}} />
                             <YAxis yAxisId="right" orientation="right" tick={{fill: '#ddd'}} />
                             
                             <Tooltip contentStyle={{backgroundColor: '#222', borderColor: '#444'}} />
                             <Legend />
 
-                            {/* Pionowa Kreska Oddzielająca Historię od Prognozy */}
-                            {forecastStartKey && (
-                                <ReferenceLine x={forecastStartKey} stroke="#ff0055" strokeDasharray="3 3" label={{ position: 'top', value: 'Moment Predykcji', fill: '#ff0055' }} />
-                            )}
-
                             {/* Nasze linie danych (z osiami, bo inflacja to np. 5%, a pensje to 10000PLN) */}
                             <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={2} />
                             <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje R&D (mln)" stroke="#b000ff" dot={false} strokeWidth={2} />
                             <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja CPI (%)" stroke="#ffaa00" dot={false} strokeWidth={2} />
+
+                            {/* Pionowa Kreska Oddzielająca Historię od Prognozy - renderujemy na końcu dla pewności domeny */}
+                            {forecastStartKey && data.some(d => d.date === forecastStartKey) && (
+                                <ReferenceLine yAxisId="left" x={forecastStartKey} stroke="#ff0055" strokeDasharray="3 3" label={{ position: 'top', value: 'Moment Predykcji', fill: '#ff0055' }} />
+                            )}
                         </LineChart>
                     </ResponsiveContainer>
                 </div>

@@ -39,19 +39,16 @@ def get_historical_data():
         raise HTTPException(status_code=404, detail="Brak danych, odpal wpierw skrypt fetchera!")
     return data
 
-@app.get("/api/forecast")
-def get_forecast():
-    """Zwraca JSON z prognozami z modelu bazowego (VAR) na rok w przód"""
-    data_raw = model_manager.get_forecast(steps=12)
-    if not data_raw:
+def _format_forecast_response(data_raw: list):
+    """Pomocnicza funkcja do unifikacji formatu odpowiedzi dla prognoz"""
+    if not data_raw or model_manager.df is None or model_manager.df.empty:
         return []
-    
-    # Podpinamy rzekome daty do prognozy, licząc od daty ostatniego rekordu z historii
+        
     last_date = pd.to_datetime(model_manager.df.index[-1])
-    dates = [last_date + pd.DateOffset(months=i) for i in range(1, 13)]
+    dates = [last_date + pd.DateOffset(months=i) for i in range(1, len(data_raw) + 1)]
     
     response = []
-    for i in range(12):
+    for i in range(len(data_raw)):
         response.append({
             "date": dates[i].strftime('%Y-%m-%d'),
             "it_earnings": data_raw[i][0],
@@ -59,8 +56,13 @@ def get_forecast():
             "cpi_inflation": data_raw[i][2],
             "is_forecast": True
         })
-        
     return response
+
+@app.get("/api/forecast")
+def get_forecast():
+    """Zwraca JSON z prognozami z modelu bazowego (VAR) na rok w przód"""
+    data_raw = model_manager.get_forecast(steps=12)
+    return _format_forecast_response(data_raw)
 
 @app.post("/api/simulate-shock")
 def simulate_shock(req: ShockRequest):
@@ -69,22 +71,14 @@ def simulate_shock(req: ShockRequest):
     i przerzuca przez Impulse Response Function (IRF).
     """
     if req.shock_variable not in model_manager.variables:
-        raise HTTPException(status_code=400, detail="Nieznana zmienna. Dostępne: it_earnings, ai_investments, cpi_inflation")
+        raise HTTPException(status_code=400, detail="Nieznana zmienna.")
         
-    shocked_data = model_manager.simulate_shock(req.shock_variable, req.shock_magnitude, steps=12)
-    
-    # Odbudowa obwiedni dat
-    last_date = pd.to_datetime(model_manager.df.index[-1])
-    dates = [last_date + pd.DateOffset(months=i) for i in range(1, 13)]
-    
-    response = []
-    for i in range(12):
-        response.append({
-            "date": dates[i].strftime('%Y-%m-%d'),
-            "it_earnings": shocked_data[i][0],
-            "ai_investments": shocked_data[i][1],
-            "cpi_inflation": shocked_data[i][2],
-            "is_forecast": True
-        })
-        
-    return response
+    # Ponownie zabezpieczamy się przed brakiem danych w runtime
+    if model_manager.df is None or model_manager.df.empty:
+         raise HTTPException(status_code=404, detail="Brak danych do przeprowadzenia symulacji.")
+
+    data_raw = model_manager.simulate_shock(req.shock_variable, req.shock_magnitude, steps=12)
+    return _format_forecast_response(data_raw)
+
+# Info: Pakiety FastAPI, Pydantic itp. są zainstalowane w środowisku Python 3.13. 
+# Jeśli wciąż widnieją błędy importu, odśwież interpreter w ustawieniach edytora.

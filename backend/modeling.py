@@ -54,17 +54,17 @@ class ModelManager:
         """
         Inicjalizacja modelu VAR, szukamy optymalnego laga przez AIC
         """
-        if len(self.df) < 10:
-            return
-            
         train_df = self._diff_data_if_needed()
-        self.var_model = VAR(train_df)
-        
-        # Znajdowanie laga (max 12 msc)
-        x = self.var_model.select_order(maxlags=12)
-        self.lag_order = x.aic
-        if self.lag_order == 0:
+        if len(train_df) <= 12: # Potrzebujemy więcej danych niż maxlags
+            print("Uwaga: Zbyt mało danych do automatycznego doboru laga. Ustawiam lag=1")
             self.lag_order = 1
+        else:
+            self.var_model = VAR(train_df)
+            # Znajdowanie laga (max 12 msc)
+            x = self.var_model.select_order(maxlags=12)
+            self.lag_order = x.aic
+            if self.lag_order == 0:
+                self.lag_order = 1
             
         self.var_result = self.var_model.fit(self.lag_order)
         print(f"Model VAR wytrenowany z lagiem = {self.lag_order}")
@@ -126,38 +126,36 @@ class ModelManager:
         if self.var_result is None:
             self.build_var()
 
-        if self.var_result is None:
-            return []
+        try:
+            # Tworzymy wektor szoku (1 dla zmiennej szokowanej, reszta 0) pomnożony z siłą szoku.
+            idx = self.variables.index(shock_variable)
+            shock_vector = np.zeros(len(self.variables))
+            shock_vector[idx] = shock_magnitude
 
-        # Tworzymy wektor szoku (1 dla zmiennej szokowanej, reszta 0) pomnożony z siłą szoku.
-        idx = self.variables.index(shock_variable)
-        shock_vector = np.zeros(len(self.variables))
-        shock_vector[idx] = shock_magnitude
-
-        # Wykorzystujemy ortogonalizowane impulsowe odpowiedzi z modelu
-        irf = self.var_result.irf(steps)
-        # irf.orth_irfs to tensor [steps, vars, shocks]
-        
-        # My robimy proste nakładanie uderzenia na prognozę bazy
-        last_vals_diff = self._diff_data_if_needed().values[-self.lag_order:]
-        
-        # Zeby uzyskać prognoze z szokiem, możemy uderzyć tymczasowo na końcu wejścia
-        # lub wyklikać w sposób ręczny dodając `shock_vector` do obecnego `last_vals_diff[-1]`
-        shocked_input = last_vals_diff.copy()
-        shocked_input[-1] += shock_vector
-        
-        pred_diff_shocked = self.var_result.forecast(y=shocked_input, steps=steps)
-        
-        last_real_vals = self.df.iloc[-1].values
-        forecast_shocked = []
-        
-        current_val = last_real_vals.copy()
-        for i in range(steps):
-            current_val = current_val + pred_diff_shocked[i]
-            current_val = np.maximum(current_val, 0)
-            forecast_shocked.append(current_val.tolist())
+            # irf = self.var_result.irf(steps) # Można użyć irf, ale robimy prognozę z przesunięciem
             
-        return forecast_shocked
+            # My robimy proste nakładanie uderzenia na prognozę bazy
+            last_vals_diff = self._diff_data_if_needed().values[-self.lag_order:]
+            
+            # Zeby uzyskać prognoze z szokiem, uderzamy tymczasowo na końcu wejścia
+            shocked_input = last_vals_diff.copy()
+            shocked_input[-1] += shock_vector
+            
+            pred_diff_shocked = self.var_result.forecast(y=shocked_input, steps=steps)
+            
+            last_real_vals = self.df.iloc[-1].values
+            forecast_shocked = []
+            
+            current_val = last_real_vals.copy()
+            for i in range(steps):
+                current_val = current_val + pred_diff_shocked[i]
+                current_val = np.maximum(current_val, 0)
+                forecast_shocked.append(current_val.tolist())
+                
+            return forecast_shocked
+        except Exception as e:
+            print(f"Błąd symulacji szoku: {e}")
+            return []
         
     def get_historical_data_for_json(self):
         """Pomocnicza pętla zwracająca dict data_historii dla FastAPI"""
