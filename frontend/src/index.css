@@ -88,20 +88,53 @@ h2, h3 {
 }
 
 /* CONTROLS */
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2rem;
-  align-items: center;
-  justify-content: space-between;
+.multi-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    align-items: center;
 }
 
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex: 1;
-  min-width: 250px;
+.input-with-slider {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+.input-with-slider input[type="range"] {
+    flex: 1;
+}
+
+.number-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    padding: 0.5rem;
+    width: 80px;
+    text-align: center;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.number-input:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #00f3ff;
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+.reset-btn {
+    padding: 0.8rem 1.5rem;
+    background: linear-gradient(135deg, #ff0055 0%, #ff4785 100%);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    align-self: flex-end;
 }
 
 .control-group label {

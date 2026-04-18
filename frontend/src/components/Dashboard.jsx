@@ -101,32 +101,57 @@ const Dashboard = () => {
                     
                     {/* Zarobki IT */}
                     <div className="control-group range-group">
-                        <label>Zarobki IT: {shocks.it_earnings > 0 ? '+'+shocks.it_earnings.toFixed(0) : shocks.it_earnings.toFixed(0)} PLN</label>
-                        <input 
-                            type="range" min="-2000" max="2000" step="50"
-                            value={shocks.it_earnings} 
-                            onChange={(e) => handleShockChange('it_earnings', e.target.value)}
-                        />
+                        <label>Zarobki IT (PLN):</label>
+                        <div className="input-with-slider">
+                            <input 
+                                type="range" min="-5000" max="5000" step="50"
+                                value={shocks.it_earnings} 
+                                onChange={(e) => handleShockChange('it_earnings', e.target.value)}
+                            />
+                            <input 
+                                type="number" 
+                                value={shocks.it_earnings} 
+                                onChange={(e) => handleShockChange('it_earnings', e.target.value)}
+                                className="number-input"
+                            />
+                        </div>
                     </div>
 
                     {/* Inwestycje AI */}
                     <div className="control-group range-group">
-                        <label>Inwestycje R&D: {shocks.ai_investments > 0 ? '+'+shocks.ai_investments.toFixed(0) : shocks.ai_investments.toFixed(0)} mln</label>
-                        <input 
-                            type="range" min="-500" max="500" step="10"
-                            value={shocks.ai_investments} 
-                            onChange={(e) => handleShockChange('ai_investments', e.target.value)}
-                        />
+                        <label>Inwestycje R&D (mln PLN):</label>
+                        <div className="input-with-slider">
+                            <input 
+                                type="range" min="-2000" max="2000" step="10"
+                                value={shocks.ai_investments} 
+                                onChange={(e) => handleShockChange('ai_investments', e.target.value)}
+                            />
+                            <input 
+                                type="number" 
+                                value={shocks.ai_investments} 
+                                onChange={(e) => handleShockChange('ai_investments', e.target.value)}
+                                className="number-input"
+                            />
+                        </div>
                     </div>
 
                     {/* Inflacja */}
                     <div className="control-group range-group">
-                        <label>Inflacja CPI: {shocks.cpi_inflation > 0 ? '+'+shocks.cpi_inflation.toFixed(1) : shocks.cpi_inflation.toFixed(1)}%</label>
-                        <input 
-                            type="range" min="-5" max="10" step="0.1"
-                            value={shocks.cpi_inflation} 
-                            onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
-                        />
+                        <label>Inflacja CPI (%):</label>
+                        <div className="input-with-slider">
+                            <input 
+                                type="range" min="-10" max="25" step="0.1"
+                                value={shocks.cpi_inflation} 
+                                onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
+                            />
+                            <input 
+                                type="number" 
+                                value={shocks.cpi_inflation} 
+                                step="0.1"
+                                onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
+                                className="number-input"
+                            />
+                        </div>
                     </div>
 
                     <button className="reset-btn" onClick={resetShocks}>Resetuj Wszystko</button>
