@@ -9,27 +9,29 @@ const API_URL = 'http://localhost:8000/api';
 const PRESETS = {
     ai_boom: {
         name: "🚀 Boom AI",
-        desc: "Masywne inwestycje R&D i skokowy wzrost płac programistów.",
+        desc: "Masywne inwestycje R&D, skok płac i gwałtowny wzrost zatrudnienia.",
         shocks: [
             { id: 1, variable: 'ai_investments', value: 3000, delay: 0 },
-            { id: 2, variable: 'it_earnings', value: 2500, delay: 6 }
+            { id: 2, variable: 'it_hiring', value: 25, delay: 3 },
+            { id: 3, variable: 'it_earnings', value: 2500, delay: 6 }
         ]
     },
     stagflation: {
         name: "📉 Szok Stagflacyjny",
-        desc: "Nagły wzrost inflacji przy jednoczesnym osłabieniu realnego wzrostu płac.",
+        desc: "Nagły wzrost inflacji przy jednoczesnym zamrożeniu rekrutacji i płac.",
         shocks: [
             { id: 1, variable: 'cpi_inflation', value: 15, delay: 0 },
-            { id: 2, variable: 'it_earnings', value: -1500, delay: 0 }
+            { id: 2, variable: 'it_hiring', value: -15, delay: 0 },
+            { id: 3, variable: 'it_earnings', value: -1500, delay: 0 }
         ]
     },
     digital_bounce: {
         name: "📈 Cyfrowe Odbicie",
-        desc: "Umiarkowany wzrost inwestycji rozłożony w czasie.",
+        desc: "Stabilny wzrost inwestycji przekładający się na systematyczne zatrudnienie.",
         shocks: [
             { id: 1, variable: 'ai_investments', value: 1000, delay: 0 },
-            { id: 2, variable: 'ai_investments', value: 1500, delay: 12 },
-            { id: 3, variable: 'it_earnings', value: 1200, delay: 18 }
+            { id: 2, variable: 'it_hiring', value: 10, delay: 6 },
+            { id: 3, variable: 'it_hiring', value: 15, delay: 18 }
         ]
     }
 };
@@ -128,6 +130,7 @@ const Dashboard = () => {
     const getUnit = (variable) => {
         if (variable === 'it_earnings') return 'PLN';
         if (variable === 'ai_investments') return 'mln';
+        if (variable === 'it_hiring') return 'Indeks';
         return '%';
     };
 
@@ -138,8 +141,8 @@ const Dashboard = () => {
     return (
         <div className="dashboard">
             <header className="dash-header">
-                <h1>Analator VAR: Zarobki, AI & Inflacja</h1>
-                <p>Symulacja wielwymiarowych impulsów makroekonomicznych.</p>
+                <h1>Analator VAR: Zarobki, AI & Zatrudnienie</h1>
+                <p>Profesjonalna symulacja wielowymiarowych impulsów makroekonomicznych.</p>
             </header>
 
             <section className="presets-container glass">
@@ -156,31 +159,32 @@ const Dashboard = () => {
 
             <div className="simulator-panel glass">
                 <div className="panel-header">
-                    <h2>Harmonogram Szoków Gospodarczych</h2>
-                    <button className="add-btn" onClick={addShock}>+ Dodaj nowy szok</button>
+                    <h2>Scenariusze i Harmonogram Interwencji</h2>
+                    <button className="add-btn" onClick={addShock}>+ Nowy impuls</button>
                 </div>
 
                 <div className="shocks-list">
                     {shocks.length === 0 && (
-                        <p className="empty-msg">Brak aktywnych szoków. Wybierz scenariusz lub dodaj impuls ręcznie.</p>
+                        <p className="empty-msg">Brak aktywnych interwencji. Wybierz scenariusz testowy lub dodaj impuls ręcznie.</p>
                     )}
                     
                     {shocks.map((s) => (
                         <div key={s.id} className={`shock-row card shock-var-${s.variable}`}>
                             <div className="shock-col">
-                                <label>Zmienna:</label>
+                                <label>Zmienna docelowa:</label>
                                 <select 
                                     value={s.variable} 
                                     onChange={(e) => updateShock(s.id, 'variable', e.target.value)}
                                 >
-                                    <option value="it_earnings">Zarobki IT</option>
-                                    <option value="ai_investments">Inwestycje AI</option>
-                                    <option value="cpi_inflation">Inflacja CPI</option>
+                                    <option value="it_earnings">Indeks Wynagrodzeń ICT</option>
+                                    <option value="ai_investments">Nakłady R&D na AI</option>
+                                    <option value="it_hiring">Zatrudnienie IT (Popyt)</option>
+                                    <option value="cpi_inflation">Inflacja Konsumencka (CPI)</option>
                                 </select>
                             </div>
 
                             <div className="shock-col">
-                                <label>Siła impulsu ({getUnit(s.variable)}):</label>
+                                <label>Amplituda ({getUnit(s.variable)}):</label>
                                 <input 
                                     type="number" 
                                     value={s.value} 
@@ -189,7 +193,7 @@ const Dashboard = () => {
                             </div>
 
                             <div className="shock-col">
-                                <label>Opóźnienie (msc):</label>
+                                <label>Przesunięcie (t+ k):</label>
                                 <input 
                                     type="number" min="0" max="23"
                                     value={s.delay} 
@@ -204,44 +208,44 @@ const Dashboard = () => {
 
                 {shocks.length > 0 && (
                     <div className="panel-footer">
-                        <button className="reset-btn" onClick={resetShocks}>Wyczyść wszystko</button>
-                        <small className="hint">Pionowe linie na wykresie pokazują punkty interwencji (szoki).</small>
+                        <button className="reset-btn" onClick={resetShocks}>Wyczyść harmonogram</button>
+                        <small className="hint">Trajektoria IRF (Impulse Response Function) jest rekurencyjnie przeliczana dla każdego punktu interwencji.</small>
                     </div>
                 )}
             </div>
 
             <div className="chart-panel glass">
-                <h3>Prognoza i Trajektorie (Impulse Response)</h3>
+                <h3>Symulacja Prognostyczna i Analiza Impulsów</h3>
                 <div style={{ width: '100%', height: 400 }}>
                     <ResponsiveContainer>
                         <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                            <XAxis dataKey="date" tick={{fill: '#94a3b8', fontSize: 12}} />
-                            <YAxis yAxisId="left" tick={{fill: '#94a3b8'}} />
-                            <YAxis yAxisId="right" orientation="right" tick={{fill: '#94a3b8'}} />
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.05} />
+                            <XAxis dataKey="date" tick={{fill: '#64748b', fontSize: 11}} />
+                            <YAxis yAxisId="left" tick={{fill: '#64748b'}} />
+                            <YAxis yAxisId="right" orientation="right" tick={{fill: '#64748b'}} />
                             
-                            <Tooltip contentStyle={{backgroundColor: '#0f172a', borderColor: '#1e293b', border: '1px solid #334155'}} />
-                            <Legend verticalAlign="top" height={36}/>
+                            <Tooltip 
+                                contentStyle={{backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px'}} 
+                                itemStyle={{fontSize: '13px'}}
+                            />
+                            <Legend verticalAlign="top" height={36} iconType="circle"/>
 
                             {/* Pionowa Kreska: Wskaźnik dnia dzisiejszego / Start prognozy */}
                             {forecastStartKey && (
                                 <ReferenceLine 
                                     yAxisId="left" 
                                     x={forecastStartKey} 
-                                    stroke="#ef4444" 
-                                    strokeDasharray="5 5" 
-                                    label={{ position: 'top', value: 'START', fill: '#ef4444', fontSize: 11, fontWeight: 'bold' }} 
+                                    stroke="#334155" 
+                                    strokeDasharray="4 4" 
+                                    label={{ position: 'top', value: 'PROGNOZA', fill: '#64748b', fontSize: 10, letterSpacing: '1px' }} 
                                 />
                             )}
 
                             {/* Linie szoków - dynamiczne ReferenceLines */}
                             {shocks.map(s => {
-                                // Obliczamy datę szoku: forecastStartKey + s.delay miesięcy
                                 const fDate = new Date(forecastStartKey);
                                 fDate.setMonth(fDate.getMonth() + s.delay);
-                                const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7); // YYYY-MM
-                                
-                                // Znajdujemy najbliższą datę w danych
+                                const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7);
                                 const actualDate = data.find(d => d.date.startsWith(shockDateStr))?.date;
 
                                 return actualDate ? (
@@ -249,20 +253,50 @@ const Dashboard = () => {
                                         key={`shock-${s.id}`}
                                         yAxisId="left"
                                         x={actualDate}
-                                        stroke={s.variable === 'it_earnings' ? '#00f3ff' : s.variable === 'ai_investments' ? '#b000ff' : '#ffaa00'}
-                                        strokeOpacity={0.4}
-                                        strokeDasharray="3 3"
+                                        stroke={
+                                            s.variable === 'it_earnings' ? '#3b82f6' : 
+                                            s.variable === 'ai_investments' ? '#8b5cf6' : 
+                                            s.variable === 'it_hiring' ? '#10b981' : '#f59e0b'
+                                        }
+                                        strokeOpacity={0.3}
                                     />
                                 ) : null;
                             })}
 
-                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={3} isAnimationActive={true} />
-                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje AI (mln)" stroke="#b000ff" dot={false} strokeWidth={3} isAnimationActive={true} />
-                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja (%)" stroke="#ffaa00" dot={false} strokeWidth={3} isAnimationActive={true} />
+                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Wynagrodzenia ICT" stroke="#3b82f6" dot={false} strokeWidth={2} isAnimationActive={true} />
+                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje AI" stroke="#8b5cf6" dot={false} strokeWidth={2} isAnimationActive={true} />
+                            <Line yAxisId="right" type="monotone" dataKey="it_hiring" name="Zatrudnienie IT (Indeks)" stroke="#10b981" dot={false} strokeWidth={2} isAnimationActive={true} />
+                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja CPI" stroke="#f59e0b" dot={false} strokeWidth={2} isAnimationActive={true} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
             </div>
+
+            <section className="methodology-section glass">
+                <div className="method-grid">
+                    <div className="method-col">
+                        <h4>Aparatura Statystyczna</h4>
+                        <p>Rdzeniem obliczeniowym systemu jest model <strong>Vector Autoregression (VAR)</strong>, zoptymalizowany pod kątem szeregów czasowych z kointegracją rzędu 0.</p>
+                        <ul>
+                            <li><strong>AIC Optimiziation:</strong> Automatyczny wybór rzędu opóźnień (Lags) na podstawie kryterium Akaikego.</li>
+                            <li><strong>ADF Testing:</strong> Prewencyjna weryfikacja stacjonarności i różnicowanie szeregów 1-go stopnia.</li>
+                            <li><strong>Nowa Zmienna (Hiring):</strong> Model uwzględnia popyt na pracę jako endogeniczną odpowiedź na nakłady kapitałowe.</li>
+                        </ul>
+                    </div>
+                    <div className="method-col">
+                        <h4>Architektura Systemu</h4>
+                        <p>Projekt zrealizowany w architekturze rozproszonej, zapewniającej wysoką responsywność obliczeniową.</p>
+                        <ul>
+                            <li><strong>Źródła Danych:</strong> Hybrydowe API (Yahoo Finance / FRED proxy) zasilające bazę CSV.</li>
+                            <li><strong>Backend:</strong> Python 3.x z silnikiem FastAPI. Przetwarzanie macierzowe (NumPy, Statsmodels).</li>
+                            <li><strong>Frontend:</strong> React 18 zasilany przez Vite – renderowanie w czasie rzeczywistym.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div className="method-footer">
+                    <p>© 2024 VAR Systems • Professional Forecasting Intelligence</p>
+                </div>
+            </section>
         </div>
     );
 };

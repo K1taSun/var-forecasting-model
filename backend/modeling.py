@@ -17,14 +17,14 @@ class ModelManager:
     def load_data(self):
         try:
             self.df = pd.read_csv(self.data_path, index_col="date", parse_dates=True)
-            self.variables = ["it_earnings", "ai_investments", "cpi_inflation"]
-            # Sprawdzamy, czy dane są pełne na kolumnach
-            if not all(col in self.df.columns for col in self.variables):
-                raise ValueError("Brak odpowiednich kolumn w danych. Prawdopodobnie skrypt data_fetcher.py padł.")
+            self.variables = self.df.columns.tolist() # Dynamiczne pobranie zmiennych z CSV
+            
+            if not self.variables:
+                raise ValueError("Brak kolumn w danych. Plik CSV może być uszkodzony.")
         except FileNotFoundError:
-            # Pusta struktura, żeby API nie padało całkowicie:
-            print("Uwaga studenta: Nie znaleziono danych! Próba użycia bez danych.") 
-            self.df = pd.DataFrame(columns=["it_earnings", "ai_investments", "cpi_inflation"])
+            print("Krytyczny błąd: Nie znaleziono pliku danych!") 
+            self.df = pd.DataFrame()
+            self.variables = []
 
     def check_stationarity(self):
         """
@@ -32,6 +32,8 @@ class ModelManager:
         Promotor zobaczy, że sprawdzamy stacjonarność przed wymodelowaniem.
         """
         results = {}
+        if not self.variables: return results
+
         for col in self.variables:
             series = self.df[col].dropna()
             if len(series) < 10:
@@ -171,19 +173,16 @@ class ModelManager:
             return []
         
     def get_historical_data_for_json(self):
-        """Pomocnicza pętla zwracająca dict data_historii dla FastAPI"""
+        """Pomocnicza pętla zwracająca listę rekordów dla FastAPI"""
         if self.df is None or self.df.empty:
             return []
             
-        # Zamieniamy index datetime na string
         df_out = self.df.copy()
         df_out.index = df_out.index.strftime('%Y-%m-%d')
         result = []
         for idx, row in df_out.iterrows():
-            result.append({
-                "date": idx,
-                "it_earnings": row["it_earnings"],
-                "ai_investments": row["ai_investments"],
-                "cpi_inflation": row["cpi_inflation"]
-            })
+            item = {"date": idx}
+            for col in self.variables:
+                item[col] = float(row[col]) # Zapewniamy format float dla JSON
+            result.append(item)
         return result

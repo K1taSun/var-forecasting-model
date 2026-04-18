@@ -65,17 +65,23 @@ def fetch_and_prepare_data():
         elif d.year < 2023: curr += 0.8 # Skok
         else: curr -= 0.4 # Spadek
         cpi.append(max(curr, 2.0))
+
+    # 4. NOWOŚĆ: Liczba nowych zatrudnionych IT (Indeks: 100 = baza)
+    # Reaguje na inwestycje AI (z wyprzedzeniem) i ogólną koniunkturę
+    hiring_base = 100 + (np.log1p(ai_investments) * 5)
+    it_hiring = hiring_base + np.random.normal(0, 3, months)
         
     final_df = pd.DataFrame({
         "it_earnings": np.round(it_earnings, 2),
         "ai_investments": np.round(ai_investments, 2),
-        "cpi_inflation": np.round(cpi, 2)
+        "cpi_inflation": np.round(cpi, 2),
+        "it_hiring": np.round(it_hiring, 2)
     }, index=dates)
     
     final_df.index.name = "date"
     os.makedirs('data', exist_ok=True)
     final_df.to_csv('data/processed_data.csv')
-    print(f"Sukces! Dane zapisane w data/processed_data.csv. Mamy {len(final_df)} miesięcy do analizy.")
+    print(f"Sukces! Dane zapisane w data/processed_data.csv. Mamy {len(final_df)} miesięcy i 4 zmienne.")
 
 if __name__ == "__main__":
     fetch_and_prepare_data()

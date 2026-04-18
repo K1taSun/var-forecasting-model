@@ -55,13 +55,14 @@ def _format_forecast_response(data_raw: list):
     
     response = []
     for i in range(len(data_raw)):
-        response.append({
+        item = {
             "date": dates[i].strftime('%Y-%m-%d'),
-            "it_earnings": data_raw[i][0],
-            "ai_investments": data_raw[i][1],
-            "cpi_inflation": data_raw[i][2],
             "is_forecast": True
-        })
+        }
+        # Dynamiczne mapowanie wartości na nazwy zmiennych
+        for v_idx, var_name in enumerate(model_manager.variables):
+            item[var_name] = data_raw[i][v_idx]
+        response.append(item)
     return response
 
 @app.get("/api/forecast")
