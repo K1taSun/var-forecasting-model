@@ -6,14 +6,38 @@ import {
 
 const API_URL = 'http://localhost:8000/api';
 
+const PRESETS = {
+    ai_boom: {
+        name: "🚀 Boom AI",
+        desc: "Masywne inwestycje R&D i skokowy wzrost płac programistów.",
+        shocks: [
+            { id: 1, variable: 'ai_investments', value: 3000, delay: 0 },
+            { id: 2, variable: 'it_earnings', value: 2500, delay: 6 }
+        ]
+    },
+    stagflation: {
+        name: "📉 Szok Stagflacyjny",
+        desc: "Nagły wzrost inflacji przy jednoczesnym osłabieniu realnego wzrostu płac.",
+        shocks: [
+            { id: 1, variable: 'cpi_inflation', value: 15, delay: 0 },
+            { id: 2, variable: 'it_earnings', value: -1500, delay: 0 }
+        ]
+    },
+    digital_bounce: {
+        name: "📈 Cyfrowe Odbicie",
+        desc: "Umiarkowany wzrost inwestycji rozłożony w czasie.",
+        shocks: [
+            { id: 1, variable: 'ai_investments', value: 1000, delay: 0 },
+            { id: 2, variable: 'ai_investments', value: 1500, delay: 12 },
+            { id: 3, variable: 'it_earnings', value: 1200, delay: 18 }
+        ]
+    }
+};
+
 const Dashboard = () => {
     const [data, setData] = useState([]);
     const [originalForecast, setOriginalForecast] = useState([]);
-    const [shocks, setShocks] = useState({
-        it_earnings: 0,
-        ai_investments: 0,
-        cpi_inflation: 0
-    });
+    const [shocks, setShocks] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Pobranie danych startowych po załadowaniu
@@ -38,13 +62,7 @@ const Dashboard = () => {
     }, []);
 
     const simulateShock = async (updatedShocks) => {
-        setShocks(updatedShocks);
-        console.log("Symulacja szoków dla:", updatedShocks);
-        
-        // Sprawdzamy czy wszystkie szoki są zerowe
-        const isAllZero = Object.values(updatedShocks).every(v => v === 0);
-
-        if (isAllZero) {
+        if (updatedShocks.length === 0) {
             const histData = data.filter(d => !d.is_forecast);
             setData([...histData, ...originalForecast]);
             return;
@@ -52,9 +70,12 @@ const Dashboard = () => {
 
         try {
             const res = await axios.post(`${API_URL}/simulate-shock`, {
-                shocks: updatedShocks
+                shocks: updatedShocks.map(s => ({
+                    variable: s.variable,
+                    value: parseFloat(s.value) || 0,
+                    delay: parseInt(s.delay) || 0
+                }))
             });
-            console.log("Otrzymano nową prognozę:", res.data.length, "elementów");
             const histData = data.filter(d => !d.is_forecast);
             setData([...histData, ...res.data]);
         } catch(err) {
@@ -62,18 +83,36 @@ const Dashboard = () => {
         }
     };
 
-    const handleShockChange = (variable, value) => {
-        let val = parseFloat(value);
-        if (isNaN(val)) val = 0; // Aby uniknąć błędów przy pustym polu
-        
-        console.log(`Zmiana parametru ${variable} -> ${val}`);
-        const newShocks = { ...shocks, [variable]: val };
+    const addShock = () => {
+        const newShock = { id: Date.now(), variable: 'it_earnings', value: 1000, delay: 0 };
+        const newShocks = [...shocks, newShock];
+        setShocks(newShocks);
         simulateShock(newShocks);
     };
 
+    const removeShock = (id) => {
+        const newShocks = shocks.filter(s => s.id !== id);
+        setShocks(newShocks);
+        simulateShock(newShocks);
+    };
+
+    const updateShock = (id, field, val) => {
+        const newShocks = shocks.map(s => s.id === id ? { ...s, [field]: val } : s);
+        setShocks(newShocks);
+        simulateShock(newShocks);
+    };
+
+    const applyPreset = (key) => {
+        const preset = PRESETS[key];
+        if (preset) {
+            setShocks(preset.shocks);
+            simulateShock(preset.shocks);
+        }
+    };
+
     const resetShocks = () => {
-        const zeros = { it_earnings: 0, ai_investments: 0, cpi_inflation: 0 };
-        simulateShock(zeros);
+        setShocks([]);
+        simulateShock([]);
     };
 
     if (loading) return <div className="loader">Trwa pobieranie modelu VAR...</div>;
@@ -86,6 +125,12 @@ const Dashboard = () => {
         );
     }
 
+    const getUnit = (variable) => {
+        if (variable === 'it_earnings') return 'PLN';
+        if (variable === 'ai_investments') return 'mln';
+        return '%';
+    };
+
     // Szukamy punktu odcięcia (gdzie zaczyna się predykcja) by narysować linię
     const forecastStartObj = data.find(d => d.is_forecast);
     const forecastStartKey = forecastStartObj ? forecastStartObj.date : null;
@@ -94,71 +139,75 @@ const Dashboard = () => {
         <div className="dashboard">
             <header className="dash-header">
                 <h1>Analator VAR: Zarobki, AI & Inflacja</h1>
-                <p>Symulacja wielowymiarowych impulsów makroekonomicznych.</p>
+                <p>Symulacja wielwymiarowych impulsów makroekonomicznych.</p>
             </header>
 
-            <div className="simulator-panel glass">
-                <h2>Symulator Szoków Gospodarczych (Multi-Shock)</h2>
-                <div className="multi-controls">
-                    
-                    {/* Zarobki IT */}
-                    <div className="control-group range-group">
-                        <label>Zarobki IT (PLN):</label>
-                        <div className="input-with-slider">
-                            <input 
-                                type="range" min="-5000" max="5000" step="50"
-                                value={shocks.it_earnings} 
-                                onChange={(e) => handleShockChange('it_earnings', e.target.value)}
-                            />
-                            <input 
-                                type="number" 
-                                value={shocks.it_earnings} 
-                                onChange={(e) => handleShockChange('it_earnings', e.target.value)}
-                                className="number-input"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Inwestycje AI */}
-                    <div className="control-group range-group">
-                        <label>Inwestycje R&D (mln PLN):</label>
-                        <div className="input-with-slider">
-                            <input 
-                                type="range" min="-2000" max="2000" step="10"
-                                value={shocks.ai_investments} 
-                                onChange={(e) => handleShockChange('ai_investments', e.target.value)}
-                            />
-                            <input 
-                                type="number" 
-                                value={shocks.ai_investments} 
-                                onChange={(e) => handleShockChange('ai_investments', e.target.value)}
-                                className="number-input"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Inflacja */}
-                    <div className="control-group range-group">
-                        <label>Inflacja CPI (%):</label>
-                        <div className="input-with-slider">
-                            <input 
-                                type="range" min="-10" max="25" step="0.1"
-                                value={shocks.cpi_inflation} 
-                                onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
-                            />
-                            <input 
-                                type="number" 
-                                value={shocks.cpi_inflation} 
-                                step="0.1"
-                                onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
-                                className="number-input"
-                            />
-                        </div>
-                    </div>
-
-                    <button className="reset-btn" onClick={resetShocks}>Resetuj Wszystko</button>
+            <section className="presets-container glass">
+                <h3>Gotowe scenariusze testowe</h3>
+                <div className="presets-grid">
+                    {Object.entries(PRESETS).map(([key, preset]) => (
+                        <button key={key} className="preset-card" onClick={() => applyPreset(key)}>
+                            <strong>{preset.name}</strong>
+                            <p>{preset.desc}</p>
+                        </button>
+                    ))}
                 </div>
-                <small className="hint">Przesuń suwaki by nałożyć kilka szoków jednocześnie. Model VAR przeliczy wzajemne relacje.</small>
+            </section>
+
+            <div className="simulator-panel glass">
+                <div className="panel-header">
+                    <h2>Harmonogram Szoków Gospodarczych</h2>
+                    <button className="add-btn" onClick={addShock}>+ Dodaj nowy szok</button>
+                </div>
+
+                <div className="shocks-list">
+                    {shocks.length === 0 && (
+                        <p className="empty-msg">Brak aktywnych szoków. Wybierz scenariusz lub dodaj impuls ręcznie.</p>
+                    )}
+                    
+                    {shocks.map((s) => (
+                        <div key={s.id} className={`shock-row card shock-var-${s.variable}`}>
+                            <div className="shock-col">
+                                <label>Zmienna:</label>
+                                <select 
+                                    value={s.variable} 
+                                    onChange={(e) => updateShock(s.id, 'variable', e.target.value)}
+                                >
+                                    <option value="it_earnings">Zarobki IT</option>
+                                    <option value="ai_investments">Inwestycje AI</option>
+                                    <option value="cpi_inflation">Inflacja CPI</option>
+                                </select>
+                            </div>
+
+                            <div className="shock-col">
+                                <label>Siła impulsu ({getUnit(s.variable)}):</label>
+                                <input 
+                                    type="number" 
+                                    value={s.value} 
+                                    onChange={(e) => updateShock(s.id, 'value', e.target.value)}
+                                />
+                            </div>
+
+                            <div className="shock-col">
+                                <label>Opóźnienie (msc):</label>
+                                <input 
+                                    type="number" min="0" max="23"
+                                    value={s.delay} 
+                                    onChange={(e) => updateShock(s.id, 'delay', e.target.value)}
+                                />
+                            </div>
+
+                            <button className="remove-btn" onClick={() => removeShock(s.id)}>Usuń</button>
+                        </div>
+                    ))}
+                </div>
+
+                {shocks.length > 0 && (
+                    <div className="panel-footer">
+                        <button className="reset-btn" onClick={resetShocks}>Wyczyść wszystko</button>
+                        <small className="hint">Pionowe linie na wykresie pokazują punkty interwencji (szoki).</small>
+                    </div>
+                )}
             </div>
 
             <div className="chart-panel glass">
@@ -166,31 +215,50 @@ const Dashboard = () => {
                 <div style={{ width: '100%', height: 400 }}>
                     <ResponsiveContainer>
                         <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                            <XAxis dataKey="date" tick={{fill: '#ddd'}} type="category" allowDuplicatedCategory={false} />
-                            <YAxis yAxisId="left" tick={{fill: '#ddd'}} />
-                            <YAxis yAxisId="right" orientation="right" tick={{fill: '#ddd'}} />
+                            <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                            <XAxis dataKey="date" tick={{fill: '#94a3b8', fontSize: 12}} />
+                            <YAxis yAxisId="left" tick={{fill: '#94a3b8'}} />
+                            <YAxis yAxisId="right" orientation="right" tick={{fill: '#94a3b8'}} />
                             
-                            <Tooltip contentStyle={{backgroundColor: '#222', borderColor: '#444'}} />
-                            <Legend />
-
-                            {/* Nasze linie danych */}
-                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={2} isAnimationActive={false} />
-                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje R&D (mln)" stroke="#b000ff" dot={false} strokeWidth={2} isAnimationActive={false} />
-                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja CPI (%)" stroke="#ffaa00" dot={false} strokeWidth={2} isAnimationActive={false} />
+                            <Tooltip contentStyle={{backgroundColor: '#0f172a', borderColor: '#1e293b', border: '1px solid #334155'}} />
+                            <Legend verticalAlign="top" height={36}/>
 
                             {/* Pionowa Kreska: Wskaźnik dnia dzisiejszego / Start prognozy */}
-                            {forecastStartKey && data.some(d => d.date === forecastStartKey) && (
+                            {forecastStartKey && (
                                 <ReferenceLine 
-                                    key={`ref-line-${forecastStartKey}`}
                                     yAxisId="left" 
                                     x={forecastStartKey} 
-                                    stroke="#ff0055" 
+                                    stroke="#ef4444" 
                                     strokeDasharray="5 5" 
-                                    label={{ position: 'top', value: 'Dzisiaj / Start Prognozy', fill: '#ff0055', fontSize: 12 }} 
+                                    label={{ position: 'top', value: 'START', fill: '#ef4444', fontSize: 11, fontWeight: 'bold' }} 
                                 />
                             )}
 
+                            {/* Linie szoków - dynamiczne ReferenceLines */}
+                            {shocks.map(s => {
+                                // Obliczamy datę szoku: forecastStartKey + s.delay miesięcy
+                                const fDate = new Date(forecastStartKey);
+                                fDate.setMonth(fDate.getMonth() + s.delay);
+                                const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7); // YYYY-MM
+                                
+                                // Znajdujemy najbliższą datę w danych
+                                const actualDate = data.find(d => d.date.startsWith(shockDateStr))?.date;
+
+                                return actualDate ? (
+                                    <ReferenceLine 
+                                        key={`shock-${s.id}`}
+                                        yAxisId="left"
+                                        x={actualDate}
+                                        stroke={s.variable === 'it_earnings' ? '#00f3ff' : s.variable === 'ai_investments' ? '#b000ff' : '#ffaa00'}
+                                        strokeOpacity={0.4}
+                                        strokeDasharray="3 3"
+                                    />
+                                ) : null;
+                            })}
+
+                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={3} isAnimationActive={true} />
+                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje AI (mln)" stroke="#b000ff" dot={false} strokeWidth={3} isAnimationActive={true} />
+                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja (%)" stroke="#ffaa00" dot={false} strokeWidth={3} isAnimationActive={true} />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>

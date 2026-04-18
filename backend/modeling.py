@@ -117,22 +117,28 @@ class ModelManager:
             
         return forecast_actual
 
-    def simulate_shock(self, shocks: dict, steps=24):
+    def simulate_shock(self, shocks_list, steps=24):
         """
-        Multi-shock simulation z dynamiczną propagacją (ECHO).
-        Używamy pętli krok-po-kroku (rolling forecast), aby impuls w jednej zmiennej
-        wpłynął na pozostałe zgodnie z macierzą współczynników VAR.
+        Multi-shock simulation z dynamiczną propagacją (ECHO) i obsługą wielu dat.
         """
         if self.var_result is None:
             self.build_var()
 
         try:
-            # Tworzymy wektor szoku
-            shock_vector = np.zeros(len(self.variables))
-            for var_name, magnitude in shocks.items():
+            # Przygotowujemy "oś czasu" szoków: {miesiąc: wektor_szoku}
+            timeline = {}
+            for s in shocks_list:
+                # Obsługa zarówno obiektów Pydantic jak i dictów
+                var_name = s.variable if hasattr(s, 'variable') else s.get('variable')
+                value = s.value if hasattr(s, 'value') else s.get('value')
+                delay = s.delay if hasattr(s, 'delay') else s.get('delay', 0)
+
+                if delay not in timeline:
+                    timeline[delay] = np.zeros(len(self.variables))
+                
                 if var_name in self.variables:
-                    idx = self.variables.index(var_name)
-                    shock_vector[idx] += magnitude
+                    v_idx = self.variables.index(var_name)
+                    timeline[delay][v_idx] += value
 
             # Okno opóźnień (lags), które będziemy przesuwać
             current_lags = self._diff_data_if_needed().values[-self.lag_order:]
@@ -142,21 +148,19 @@ class ModelManager:
             current_lvls = last_real_vals.copy()
             
             for i in range(steps):
-                # Prognozujemy następny krok (różnicę) na podstawie obecnych opóźnień
-                # forecast() oczekuje y o kształcie (lag_order, n_vars)
+                # Prognozujemy następny krok (różnicę)
                 pred_diff = self.var_result.forecast(y=current_lags, steps=1)[0]
                 
-                # Jeśli to pierwszy krok, aplikujemy zewnętrzny SZOK
-                if i == 0:
-                    pred_diff += shock_vector
+                # Aplikujemy SZOK, jeśli przypada na ten miesiąc (i)
+                if i in timeline:
+                    pred_diff += timeline[i]
                 
                 # Aktualizujemy poziomy (integration)
                 current_lvls = current_lvls + pred_diff
-                current_lvls = np.maximum(current_lvls, 0) # Zabezpieczenie przed ujemnymi
+                current_lvls = np.maximum(current_lvls, 0)
                 forecast_shocked.append(current_lvls.tolist())
                 
                 # Przesuwamy okno opóźnień (rolling window)
-                # Dodajemy nową różnicę na koniec i usuwamy najstarszą
                 current_lags = np.vstack([current_lags[1:], pred_diff])
                 
             return forecast_shocked

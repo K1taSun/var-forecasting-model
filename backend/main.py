@@ -27,10 +27,15 @@ model_manager = ModelManager()
 # Pro forma próbujemy go ulepić od razu
 model_manager.build_var()
 
-from typing import Dict
+from typing import Dict, List
+
+class ShockEntry(BaseModel):
+    variable: str
+    value: float
+    delay: int = 0 # Miesiąc, w którym wystąpi szok (0 = start)
 
 class ShockRequest(BaseModel):
-    shocks: Dict[str, float]  # np. {"it_earnings": 500, "cpi_inflation": 2.5}
+    shocks: List[ShockEntry]
 
 @app.get("/api/historical-data")
 def get_historical_data():
