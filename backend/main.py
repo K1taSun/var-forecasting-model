@@ -61,8 +61,8 @@ def _format_forecast_response(data_raw: list):
 
 @app.get("/api/forecast")
 def get_forecast():
-    """Zwraca JSON z prognozami z modelu bazowego (VAR) na rok w przód"""
-    data_raw = model_manager.get_forecast(steps=12)
+    """Zwraca JSON z prognozami z modelu bazowego (VAR) na 2 lata w przód"""
+    data_raw = model_manager.get_forecast(steps=24)
     return _format_forecast_response(data_raw)
 
 @app.post("/api/simulate-shock")
@@ -78,7 +78,7 @@ def simulate_shock(req: ShockRequest):
     if model_manager.df is None or model_manager.df.empty:
          raise HTTPException(status_code=404, detail="Brak danych do przeprowadzenia symulacji.")
 
-    data_raw = model_manager.simulate_shock(req.shocks, steps=12)
+    data_raw = model_manager.simulate_shock(req.shocks, steps=24)
     return _format_forecast_response(data_raw)
 
 # Info: Pakiety FastAPI, Pydantic itp. są zainstalowane w środowisku Python 3.13. 

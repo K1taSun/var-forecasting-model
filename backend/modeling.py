@@ -89,7 +89,7 @@ class ModelManager:
             return res
         return None
 
-    def get_forecast(self, steps=12):
+    def get_forecast(self, steps=24):
         """
         Podstawowa prognoza w przyszłość
         """
@@ -117,7 +117,7 @@ class ModelManager:
             
         return forecast_actual
 
-    def simulate_shock(self, shocks: dict, steps=12):
+    def simulate_shock(self, shocks: dict, steps=24):
         """
         Multi-shock simulation z dynamiczną propagacją (ECHO).
         Używamy pętli krok-po-kroku (rolling forecast), aby impuls w jednej zmiennej
