@@ -9,8 +9,11 @@ const API_URL = 'http://localhost:8000/api';
 const Dashboard = () => {
     const [data, setData] = useState([]);
     const [originalForecast, setOriginalForecast] = useState([]);
-    const [shockVar, setShockVar] = useState('cpi_inflation');
-    const [shockMag, setShockMag] = useState(0);
+    const [shocks, setShocks] = useState({
+        it_earnings: 0,
+        ai_investments: 0,
+        cpi_inflation: 0
+    });
     const [loading, setLoading] = useState(true);
 
     // Pobranie danych startowych po załadowaniu
@@ -34,26 +37,37 @@ const Dashboard = () => {
         fetchInitialData();
     }, []);
 
-    const simulateShock = async (mag) => {
-        setShockMag(mag);
-        if (mag === 0) {
-            // Zwracamy po prostu do bazy
+    const simulateShock = async (updatedShocks) => {
+        setShocks(updatedShocks);
+        
+        // Sprawdzamy czy wszystkie szoki są zerowe
+        const isAllZero = Object.values(updatedShocks).every(v => v === 0);
+
+        if (isAllZero) {
             const histData = data.filter(d => !d.is_forecast);
             setData([...histData, ...originalForecast]);
             return;
         }
 
         try {
-            // Strzał do backendu do naszego modelu VAR!
             const res = await axios.post(`${API_URL}/simulate-shock`, {
-                shock_variable: shockVar,
-                shock_magnitude: parseFloat(mag)
+                shocks: updatedShocks
             });
             const histData = data.filter(d => !d.is_forecast);
             setData([...histData, ...res.data]);
         } catch(err) {
              console.error("Błąd symulacji", err);
         }
+    };
+
+    const handleShockChange = (variable, value) => {
+        const newShocks = { ...shocks, [variable]: parseFloat(value) };
+        simulateShock(newShocks);
+    };
+
+    const resetShocks = () => {
+        const zeros = { it_earnings: 0, ai_investments: 0, cpi_inflation: 0 };
+        simulateShock(zeros);
     };
 
     if (loading) return <div className="loader">Trwa pobieranie modelu VAR...</div>;
@@ -74,35 +88,46 @@ const Dashboard = () => {
         <div className="dashboard">
             <header className="dash-header">
                 <h1>Analator VAR: Zarobki, AI & Inflacja</h1>
-                <p>System wektorowej autoregresji do analizy scenariuszy makroekonomicznych.</p>
+                <p>Symulacja wielowymiarowych impulsów makroekonomicznych.</p>
             </header>
 
             <div className="simulator-panel glass">
-                <h2>Symulator Szoków (What-If)</h2>
-                <div className="controls">
-                    <div className="control-group">
-                        <label>Którą zmienną uderzamy?</label>
-                        <select value={shockVar} onChange={(e) => setShockVar(e.target.value)}>
-                            <option value="cpi_inflation">Inflacja CPI (%)</option>
-                            <option value="it_earnings">Zarobki w IT (PLN)</option>
-                            <option value="ai_investments">Inwestycje AI/R&D (mln)</option>
-                        </select>
-                    </div>
+                <h2>Symulator Szoków Gospardarczych (Multi-Shock)</h2>
+                <div className="multi-controls">
                     
+                    {/* Zarobki IT */}
                     <div className="control-group range-group">
-                        <label>Siła szoku (Δ z zewnątrz): {shockMag > 0 ? '+'+shockMag : shockMag}</label>
+                        <label>Zarobki IT: {shocks.it_earnings > 0 ? '+'+shocks.it_earnings : shocks.it_earnings} PLN</label>
                         <input 
-                            type="range" 
-                            min="-1000" 
-                            max="1000" 
-                            step="10"
-                            value={shockMag} 
-                            onChange={(e) => simulateShock(e.target.value)}
+                            type="range" min="-2000" max="2000" step="50"
+                            value={shocks.it_earnings} 
+                            onChange={(e) => handleShockChange('it_earnings', e.target.value)}
                         />
-                         <small>(Przesuń suwak i patrz na wykres! Model VAR od ręki przelicza relacje!)</small>
                     </div>
-                    <button className="reset-btn" onClick={() => simulateShock(0)}>Resetuj Szok</button>
+
+                    {/* Inwestycje AI */}
+                    <div className="control-group range-group">
+                        <label>Inwestycje R&D: {shocks.ai_investments > 0 ? '+'+shocks.ai_investments : shocks.ai_investments} mln</label>
+                        <input 
+                            type="range" min="-500" max="500" step="10"
+                            value={shocks.ai_investments} 
+                            onChange={(e) => handleShockChange('ai_investments', e.target.value)}
+                        />
+                    </div>
+
+                    {/* Inflacja */}
+                    <div className="control-group range-group">
+                        <label>Inflacja CPI: {shocks.cpi_inflation > 0 ? '+'+shocks.cpi_inflation.toFixed(1) : shocks.cpi_inflation.toFixed(1)}%</label>
+                        <input 
+                            type="range" min="-5" max="10" step="0.1"
+                            value={shocks.cpi_inflation} 
+                            onChange={(e) => handleShockChange('cpi_inflation', e.target.value)}
+                        />
+                    </div>
+
+                    <button className="reset-btn" onClick={resetShocks}>Resetuj Wszystko</button>
                 </div>
+                <small className="hint">Przesuń suwaki by nałożyć kilka szoków jednocześnie. Model VAR przeliczy wzajemne relacje.</small>
             </div>
 
             <div className="chart-panel glass">

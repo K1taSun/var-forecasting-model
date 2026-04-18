@@ -67,17 +67,17 @@ def get_forecast():
 @app.post("/api/simulate-shock")
 def simulate_shock(req: ShockRequest):
     """
-    Kluczowy endpoint studencki: bierze suwak z Frontendu 
+    Kluczowy endpoint studencki: bierze słownik szoków z Frontendu 
     i przerzuca przez Impulse Response Function (IRF).
     """
-    if req.shock_variable not in model_manager.variables:
-        raise HTTPException(status_code=400, detail="Nieznana zmienna.")
+    if not req.shocks:
+         return get_forecast()
         
     # Ponownie zabezpieczamy się przed brakiem danych w runtime
     if model_manager.df is None or model_manager.df.empty:
          raise HTTPException(status_code=404, detail="Brak danych do przeprowadzenia symulacji.")
 
-    data_raw = model_manager.simulate_shock(req.shock_variable, req.shock_magnitude, steps=12)
+    data_raw = model_manager.simulate_shock(req.shocks, steps=12)
     return _format_forecast_response(data_raw)
 
 # Info: Pakiety FastAPI, Pydantic itp. są zainstalowane w środowisku Python 3.13. 

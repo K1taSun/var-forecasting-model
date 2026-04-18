@@ -117,27 +117,27 @@ class ModelManager:
             
         return forecast_actual
 
-    def simulate_shock(self, shock_variable, shock_magnitude, steps=12):
+    def simulate_shock(self, shocks: dict, steps=12):
         """
-        Impulse Response Function simulation - spięcie pod suwak na froncie.
-        Szokujemy jedną zmienną, liczymy odpowiedź układu i transformujemy ją
-        na rzeczywiste (nie różnicowane) wartości.
+        Multi-shock simulation. Przyjmuje słownik {variable_name: magnitude}.
+        Efekty impulsów są sumowane liniowo (zgodnie z naturą modelu VAR).
         """
         if self.var_result is None:
             self.build_var()
 
         try:
-            # Tworzymy wektor szoku (1 dla zmiennej szokowanej, reszta 0) pomnożony z siłą szoku.
-            idx = self.variables.index(shock_variable)
+            # Tworzymy wektor szoku jako sumę poszczególnych uderzeń
             shock_vector = np.zeros(len(self.variables))
-            shock_vector[idx] = shock_magnitude
-
-            # irf = self.var_result.irf(steps) # Można użyć irf, ale robimy prognozę z przesunięciem
             
+            for var_name, magnitude in shocks.items():
+                if var_name in self.variables:
+                    idx = self.variables.index(var_name)
+                    shock_vector[idx] += magnitude
+
             # My robimy proste nakładanie uderzenia na prognozę bazy
             last_vals_diff = self._diff_data_if_needed().values[-self.lag_order:]
             
-            # Zeby uzyskać prognoze z szokiem, uderzamy tymczasowo na końcu wejścia
+            # Shock na końcu wejścia (uderzenie w system)
             shocked_input = last_vals_diff.copy()
             shocked_input[-1] += shock_vector
             
@@ -154,7 +154,7 @@ class ModelManager:
                 
             return forecast_shocked
         except Exception as e:
-            print(f"Błąd symulacji szoku: {e}")
+            print(f"Błąd multi-symulacji szoku: {e}")
             return []
         
     def get_historical_data_for_json(self):
