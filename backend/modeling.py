@@ -119,42 +119,51 @@ class ModelManager:
 
     def simulate_shock(self, shocks: dict, steps=12):
         """
-        Multi-shock simulation. Przyjmuje słownik {variable_name: magnitude}.
-        Efekty impulsów są sumowane liniowo (zgodnie z naturą modelu VAR).
+        Multi-shock simulation z dynamiczną propagacją (ECHO).
+        Używamy pętli krok-po-kroku (rolling forecast), aby impuls w jednej zmiennej
+        wpłynął na pozostałe zgodnie z macierzą współczynników VAR.
         """
         if self.var_result is None:
             self.build_var()
 
         try:
-            # Tworzymy wektor szoku jako sumę poszczególnych uderzeń
+            # Tworzymy wektor szoku
             shock_vector = np.zeros(len(self.variables))
-            
             for var_name, magnitude in shocks.items():
                 if var_name in self.variables:
                     idx = self.variables.index(var_name)
                     shock_vector[idx] += magnitude
 
-            # My robimy proste nakładanie uderzenia na prognozę bazy
-            last_vals_diff = self._diff_data_if_needed().values[-self.lag_order:]
-            
-            # Shock na końcu wejścia (uderzenie w system)
-            shocked_input = last_vals_diff.copy()
-            shocked_input[-1] += shock_vector
-            
-            pred_diff_shocked = self.var_result.forecast(y=shocked_input, steps=steps)
+            # Okno opóźnień (lags), które będziemy przesuwać
+            current_lags = self._diff_data_if_needed().values[-self.lag_order:]
             
             last_real_vals = self.df.iloc[-1].values
             forecast_shocked = []
+            current_lvls = last_real_vals.copy()
             
-            current_val = last_real_vals.copy()
             for i in range(steps):
-                current_val = current_val + pred_diff_shocked[i]
-                current_val = np.maximum(current_val, 0)
-                forecast_shocked.append(current_val.tolist())
+                # Prognozujemy następny krok (różnicę) na podstawie obecnych opóźnień
+                # forecast() oczekuje y o kształcie (lag_order, n_vars)
+                pred_diff = self.var_result.forecast(y=current_lags, steps=1)[0]
+                
+                # Jeśli to pierwszy krok, aplikujemy zewnętrzny SZOK
+                if i == 0:
+                    pred_diff += shock_vector
+                
+                # Aktualizujemy poziomy (integration)
+                current_lvls = current_lvls + pred_diff
+                current_lvls = np.maximum(current_lvls, 0) # Zabezpieczenie przed ujemnymi
+                forecast_shocked.append(current_lvls.tolist())
+                
+                # Przesuwamy okno opóźnień (rolling window)
+                # Dodajemy nową różnicę na koniec i usuwamy najstarszą
+                current_lags = np.vstack([current_lags[1:], pred_diff])
                 
             return forecast_shocked
         except Exception as e:
-            print(f"Błąd multi-symulacji szoku: {e}")
+            print(f"Błąd dynamicznej symulacji szoku: {e}")
+            import traceback
+            traceback.print_exc()
             return []
         
     def get_historical_data_for_json(self):

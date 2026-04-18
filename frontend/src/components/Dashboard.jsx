@@ -63,8 +63,10 @@ const Dashboard = () => {
     };
 
     const handleShockChange = (variable, value) => {
-        const val = parseFloat(value);
-        console.log(`Zmiana suwaka ${variable} -> ${val}`);
+        let val = parseFloat(value);
+        if (isNaN(val)) val = 0; // Aby uniknąć błędów przy pustym polu
+        
+        console.log(`Zmiana parametru ${variable} -> ${val}`);
         const newShocks = { ...shocks, [variable]: val };
         simulateShock(newShocks);
     };
