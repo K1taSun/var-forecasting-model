@@ -27,9 +27,10 @@ model_manager = ModelManager()
 # Pro forma próbujemy go ulepić od razu
 model_manager.build_var()
 
+from typing import Dict
+
 class ShockRequest(BaseModel):
-    shock_variable: str        # np. 'it_earnings'
-    shock_magnitude: float     # np. +500 (PLN) lub -2 (%)
+    shocks: Dict[str, float]  # np. {"it_earnings": 500, "cpi_inflation": 2.5}
 
 @app.get("/api/historical-data")
 def get_historical_data():

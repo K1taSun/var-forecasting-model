@@ -39,6 +39,7 @@ const Dashboard = () => {
 
     const simulateShock = async (updatedShocks) => {
         setShocks(updatedShocks);
+        console.log("Symulacja szoków dla:", updatedShocks);
         
         // Sprawdzamy czy wszystkie szoki są zerowe
         const isAllZero = Object.values(updatedShocks).every(v => v === 0);
@@ -53,6 +54,7 @@ const Dashboard = () => {
             const res = await axios.post(`${API_URL}/simulate-shock`, {
                 shocks: updatedShocks
             });
+            console.log("Otrzymano nową prognozę:", res.data.length, "elementów");
             const histData = data.filter(d => !d.is_forecast);
             setData([...histData, ...res.data]);
         } catch(err) {
@@ -61,7 +63,9 @@ const Dashboard = () => {
     };
 
     const handleShockChange = (variable, value) => {
-        const newShocks = { ...shocks, [variable]: parseFloat(value) };
+        const val = parseFloat(value);
+        console.log(`Zmiana suwaka ${variable} -> ${val}`);
+        const newShocks = { ...shocks, [variable]: val };
         simulateShock(newShocks);
     };
 
@@ -92,12 +96,12 @@ const Dashboard = () => {
             </header>
 
             <div className="simulator-panel glass">
-                <h2>Symulator Szoków Gospardarczych (Multi-Shock)</h2>
+                <h2>Symulator Szoków Gospodarczych (Multi-Shock)</h2>
                 <div className="multi-controls">
                     
                     {/* Zarobki IT */}
                     <div className="control-group range-group">
-                        <label>Zarobki IT: {shocks.it_earnings > 0 ? '+'+shocks.it_earnings : shocks.it_earnings} PLN</label>
+                        <label>Zarobki IT: {shocks.it_earnings > 0 ? '+'+shocks.it_earnings.toFixed(0) : shocks.it_earnings.toFixed(0)} PLN</label>
                         <input 
                             type="range" min="-2000" max="2000" step="50"
                             value={shocks.it_earnings} 
@@ -107,7 +111,7 @@ const Dashboard = () => {
 
                     {/* Inwestycje AI */}
                     <div className="control-group range-group">
-                        <label>Inwestycje R&D: {shocks.ai_investments > 0 ? '+'+shocks.ai_investments : shocks.ai_investments} mln</label>
+                        <label>Inwestycje R&D: {shocks.ai_investments > 0 ? '+'+shocks.ai_investments.toFixed(0) : shocks.ai_investments.toFixed(0)} mln</label>
                         <input 
                             type="range" min="-500" max="500" step="10"
                             value={shocks.ai_investments} 
@@ -143,21 +147,29 @@ const Dashboard = () => {
                             <Tooltip contentStyle={{backgroundColor: '#222', borderColor: '#444'}} />
                             <Legend />
 
-                            {/* Nasze linie danych (z osiami, bo inflacja to np. 5%, a pensje to 10000PLN) */}
-                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={2} />
-                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje R&D (mln)" stroke="#b000ff" dot={false} strokeWidth={2} />
-                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja CPI (%)" stroke="#ffaa00" dot={false} strokeWidth={2} />
+                            {/* Nasze linie danych */}
+                            <Line yAxisId="left" type="monotone" dataKey="it_earnings" name="Zarobki IT (PLN)" stroke="#00f3ff" dot={false} strokeWidth={2} isAnimationActive={false} />
+                            <Line yAxisId="left" type="monotone" dataKey="ai_investments" name="Inwestycje R&D (mln)" stroke="#b000ff" dot={false} strokeWidth={2} isAnimationActive={false} />
+                            <Line yAxisId="right" type="monotone" dataKey="cpi_inflation" name="Inflacja CPI (%)" stroke="#ffaa00" dot={false} strokeWidth={2} isAnimationActive={false} />
 
-                            {/* Pionowa Kreska Oddzielająca Historię od Prognozy - renderujemy na końcu dla pewności domeny */}
+                            {/* Pionowa Kreska: Wskaźnik dnia dzisiejszego / Start prognozy */}
                             {forecastStartKey && data.some(d => d.date === forecastStartKey) && (
-                                <ReferenceLine yAxisId="left" x={forecastStartKey} stroke="#ff0055" strokeDasharray="3 3" label={{ position: 'top', value: 'Moment Predykcji', fill: '#ff0055' }} />
+                                <ReferenceLine 
+                                    key={`ref-line-${forecastStartKey}`}
+                                    yAxisId="left" 
+                                    x={forecastStartKey} 
+                                    stroke="#ff0055" 
+                                    strokeDasharray="5 5" 
+                                    label={{ position: 'top', value: 'Dzisiaj / Start Prognozy', fill: '#ff0055', fontSize: 12 }} 
+                                />
                             )}
+
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
             </div>
         </div>
     );
-}
+};
 
 export default Dashboard;
