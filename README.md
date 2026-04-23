@@ -22,3 +22,20 @@ Symulator prognozowania makroekonomicznego oparty na modelach wektorowej autoreg
 - Wizualizacja trendów historycznych.
 - Prognozy bazowe na okres 24 miesięcy.
 - Interaktywne symulacje wielokrotnych szoków w czasie rzeczywistym.
+
+
+## Uruchomienie projektu
+
+Backend:
+1. Stworzenie i aktywacja środowiska wirtualnego:
+- `python -m venv venv`
+- `venv\Scripts\activate` (Windows)
+- `source venv/bin/activate` (Linux/Mac)
+2. `cd backend`
+3. opcjonalnie `pip install -r requirements.txt`
+4. `uvicorn backend.main:app --reload --port 8000`
+
+Frontend:
+1. `cd frontend`
+2. opcjonalnie `npm install` jeśli nie były zainstalowane zależności
+3. `npm run dev`
