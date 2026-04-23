@@ -52,6 +52,20 @@ class ModelManager:
         diff_df = self.df.diff().dropna()
         return diff_df
 
+    def _get_residual_volatility(self, lookback_months=60):
+        """
+        Oblicza odchylenie standardowe rezyduali modelu VAR z ostatnich N miesięcy.
+        Dzięki temu prognoza będzie "łamana" jak prawdziwe dane rynkowe,
+        a nie gładka linia trendu.
+        """
+        if self.var_result is None:
+            return None
+        
+        residuals = self.var_result.resid
+        # Bierzemy ostatnie 5 lat (60 msc) by odzwierciedlić AKTUALNĄ zmienność rynku
+        recent_resid = residuals[-lookback_months:] if len(residuals) > lookback_months else residuals
+        return recent_resid.std().values  # wektor odchyleń per zmienna
+
     def build_var(self):
         """
         Inicjalizacja modelu VAR, szukamy optymalnego laga przez AIC
@@ -93,7 +107,9 @@ class ModelManager:
 
     def get_forecast(self, steps=24):
         """
-        Podstawowa prognoza w przyszłość
+        Prognoza bazowa z realistyczną zmiennością.
+        Zamiast gładkiej linii, dodajemy szum oparty na rezydualach modelu
+        z ostatnich 5 lat — prognoza wygląda jak kontynuacja prawdziwych danych rynkowych.
         """
         if self.var_result is None:
             self.build_var()
@@ -101,21 +117,32 @@ class ModelManager:
         if self.var_result is None or len(self.df) < self.lag_order + 1:
             return []
 
-        # Pamiętajmy, że VAR modelowany jest na ZMIANACH (diff).
-        # Musimy odwrócić ten proces (cumulative sum od ostatniego punktu).
-        last_vals_diff = self._diff_data_if_needed().values[-self.lag_order:]
-        pred_diff = self.var_result.forecast(y=last_vals_diff, steps=steps)
-        
-        # Odwracanie różnicowania!
+        # Pobieramy zmienność historyczną (rezyduala z ostatnich 60 msc)
+        vol = self._get_residual_volatility(lookback_months=60)
+
+        # Krok-po-kroku z rolling window (jak simulate_shock) — dzięki temu
+        # szum propaguje się przez model i wpływa na kolejne kroki
+        current_lags = self._diff_data_if_needed().values[-self.lag_order:]
         last_real_vals = self.df.iloc[-1].values
         forecast_actual = []
         
         current_val = last_real_vals.copy()
+        np.random.seed(42)  # Stały seed dla powtarzalności wyników
+        
         for i in range(steps):
-            current_val = current_val + pred_diff[i]
-            # Mała korekta dla makro - inflacja i inwestycje raczej nie spadną poniżej zera
+            pred_diff = self.var_result.forecast(y=current_lags, steps=1)[0]
+            
+            # Dodajemy realistyczny szum rynkowy oparty na historycznej zmienności
+            if vol is not None:
+                noise = np.random.normal(0, vol * 0.7)  # 70% historycznej zmienności
+                pred_diff = pred_diff + noise
+            
+            current_val = current_val + pred_diff
             current_val = np.maximum(current_val, 0) 
             forecast_actual.append(current_val.tolist())
+            
+            # Rolling window — szum wpływa na kolejne prognozy (efekt kaskadowy)
+            current_lags = np.vstack([current_lags[1:], pred_diff])
             
         return forecast_actual
 
@@ -149,9 +176,18 @@ class ModelManager:
             forecast_shocked = []
             current_lvls = last_real_vals.copy()
             
+            # Szum rynkowy (ten sam seed co w get_forecast dla spójności wizualnej)
+            vol = self._get_residual_volatility(lookback_months=60)
+            np.random.seed(42)
+            
             for i in range(steps):
                 # Prognozujemy następny krok (różnicę)
                 pred_diff = self.var_result.forecast(y=current_lags, steps=1)[0]
+                
+                # Dodajemy realistyczny szum rynkowy
+                if vol is not None:
+                    noise = np.random.normal(0, vol * 0.7)
+                    pred_diff = pred_diff + noise
                 
                 # Aplikujemy SZOK, jeśli przypada na ten miesiąc (i)
                 if i in timeline:

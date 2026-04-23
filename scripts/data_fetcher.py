@@ -68,8 +68,8 @@ def fetch_and_prepare_data():
 
     # 4. NOWOŚĆ: Liczba nowych zatrudnionych IT (Indeks: 100 = baza)
     # Reaguje na inwestycje AI (z wyprzedzeniem) i ogólną koniunkturę
-    hiring_base = 100 + (np.log1p(ai_investments) * 5)
-    it_hiring = hiring_base + np.random.normal(0, 3, months)
+    hiring_base = 100 + (np.log1p(ai_investments) * 2.5)
+    it_hiring = hiring_base + np.random.normal(0, 1.5, months)
         
     final_df = pd.DataFrame({
         "it_earnings": np.round(it_earnings, 2),
