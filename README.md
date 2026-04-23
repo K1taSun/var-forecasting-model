@@ -26,14 +26,13 @@ Symulator prognozowania makroekonomicznego oparty na modelach wektorowej autoreg
 
 ## Uruchomienie projektu
 
-Backend:
+Backend (z katalogu głównego projektu):
 1. Stworzenie i aktywacja środowiska wirtualnego:
 - `python -m venv venv`
 - `venv\Scripts\activate` (Windows)
 - `source venv/bin/activate` (Linux/Mac)
-2. `cd backend`
-3. opcjonalnie `pip install -r requirements.txt`
-4. `uvicorn backend.main:app --reload --port 8000`
+2. `pip install -r requirements.txt`
+3. `uvicorn backend.main:app --reload --port 8000`
 
 Frontend:
 1. `cd frontend`
