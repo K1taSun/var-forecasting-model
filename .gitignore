@@ -17,8 +17,6 @@ dist-ssr/
 frontend/dist/
 
 # --- Dane / Cache ---
-# Ignorujemy wygenerowane dane, by repo było lekkie. 
-# Jeśli chcesz je wysłać do promotora, zakomentuj linię poniżej.
 data/*.csv
 data/*.parquet
 
