@@ -136,3 +136,76 @@ def get_model_forecast(request: ForecastRequest = ForecastRequest()) -> Dict[str
             detail=f"Nie udało się wygenerować prognozy. Błąd: {str(e)}"
         )
 
+@app.get("/api/historical-data", response_model=List[Dict[str, Any]])
+def get_historical_data_react() -> List[Dict[str, Any]]:
+    """
+    Zwraca dane historyczne z flagą is_forecast: False.
+    Wymagane przez stary/nowy React frontend.
+    """
+    try:
+        loader = CSVDataLoader(settings.csv_data_path)
+        data = loader.get_serializable_data()
+        for row in data:
+            row["is_forecast"] = False
+        return data
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.get("/api/forecast", response_model=List[Dict[str, Any]])
+def get_forecast_react() -> List[Dict[str, Any]]:
+    """
+    Zwraca bazową prognozę jako płaską listę słowników z flagą is_forecast: True.
+    Wymagane przez stary/nowy React frontend.
+    """
+    try:
+        loader = CSVDataLoader(settings.csv_data_path)
+        df = loader.load_and_validate()
+        engine = ForecastingEngine(df)
+        results = engine.run_forecast(steps=24)
+        
+        predictions = results["predictions"]
+        for row in predictions:
+            row["is_forecast"] = True
+        return predictions
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+class Shock(BaseModel):
+    variable: str
+    value: float
+    delay: int
+
+class ShockSimulationRequest(BaseModel):
+    shocks: List[Shock]
+
+@app.post("/api/simulate-shock", response_model=List[Dict[str, Any]])
+def post_simulate_shock(request: ShockSimulationRequest) -> List[Dict[str, Any]]:
+    """
+    Uruchamia symulację prognozy z dynamicznymi impulsami (shocks).
+    Wykonuje obliczenia rekurencyjne VAR krok po kroku.
+    """
+    try:
+        loader = CSVDataLoader(settings.csv_data_path)
+        df = loader.load_and_validate()
+        engine = ForecastingEngine(df)
+        
+        shocks_list = [
+            {"variable": s.variable, "value": s.value, "delay": s.delay}
+            for s in request.shocks
+        ]
+        
+        simulated_data = engine.run_shock_simulation(shocks_list, steps=24)
+        return simulated_data
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+

@@ -389,7 +389,7 @@ async function triggerForecastQuery() {
         const data = await response.json();
         
         // Zapisanie otrzymanych wyników do stanu globalnego
-        state.forecastData = data.forecast;
+        state.forecastData = data.predictions || data.forecast;
         state.diagnostics = data.diagnostics;
         state.modelWeightsMeta = data.model_weights_meta;
         
@@ -438,7 +438,7 @@ async function checkApiHealthAndLoadData() {
         
         if (forecastRes.ok) {
             const forecastData = await forecastRes.json();
-            state.forecastData = forecastData.forecast;
+            state.forecastData = forecastData.predictions || forecastData.forecast;
             state.diagnostics = forecastData.diagnostics;
             state.modelWeightsMeta = forecastData.model_weights_meta;
         } else {

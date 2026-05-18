@@ -136,3 +136,94 @@ class ForecastingEngine:
             "diagnostics": diagnostics,
             "model_weights_meta": weights_info
         }
+
+    def run_shock_simulation(self, shocks: List[Dict[str, Any]], steps: int = 24) -> List[Dict[str, Any]]:
+        """
+        Uruchamia symulację prognozy z dynamicznymi impulsami (shocks).
+        Impulsy są dodawane rekurencyjnie krok po kroku w trakcie prognozowania,
+        co pozwala na ich automatyczną propagację przez współczynniki modelu VAR.
+        """
+        active_cols, const_cols = self._detect_constant_columns()
+        
+        # Generowanie przyszłych dat (krok miesięczny na początku miesiąca)
+        last_date = self.df["date"].max()
+        future_dates = pd.date_range(
+            start=last_date + pd.DateOffset(months=1),
+            periods=steps,
+            freq="MS"
+        )
+        
+        # Stałe wartości dla cech bez wariancji (np. ai_investments)
+        const_vals = {col: float(self.df[col].iloc[0]) for col in const_cols}
+        
+        # Fallback w przypadku braku aktywnych zmiennych
+        if not active_cols:
+            simulated_rows = []
+            for idx, date in enumerate(future_dates):
+                row = {"date": date.strftime("%Y-%m-%d"), "is_forecast": True}
+                for col in self.numeric_cols:
+                    val = const_vals.get(col, float(self.df[col].iloc[-1]))
+                    # Zastosowanie ewentualnych impulsów
+                    for s in shocks:
+                        if s["variable"] == col and s["delay"] == idx:
+                            val += s["value"]
+                    row[col] = val
+                simulated_rows.append(row)
+            return simulated_rows
+
+        # Dopasowanie modelu VAR na aktywnych szeregach czasowych
+        df_active = self.df[active_cols]
+        max_possible_lags = min(4, len(self.df) // 10)
+        lag_order = max(1, max_possible_lags)
+        
+        model = VAR(df_active)
+        results = model.fit(maxlags=lag_order, ic="aic")
+        k_ar = results.k_ar
+        
+        # Pobranie ostatnich wartości historycznych jako punkt wyjściowy prognozy
+        history = df_active.values[-k_ar:].tolist()
+        simulated_active_values = []
+        
+        # Indeksy kolumn dla szybkich operacji
+        col_to_idx = {col: idx for idx, col in enumerate(active_cols)}
+        
+        # Generowanie prognozy krok po kroku i aplikowanie impulsów
+        for step_idx in range(steps):
+            lag_input = np.array(history[-k_ar:])
+            
+            # Prognozowanie 1 kroku w przód
+            pred_step = results.forecast(lag_input, steps=1)[0]
+            
+            # Aplikowanie impulsów zdefiniowanych dla bieżącego kroku
+            for shock in shocks:
+                var_name = shock["variable"]
+                if shock["delay"] == step_idx and var_name in col_to_idx:
+                    var_idx = col_to_idx[var_name]
+                    pred_step[var_idx] += shock["value"]
+            
+            # Dodanie wyniku kroku do historii dla kolejnych prognoz (rekurencja)
+            history.append(pred_step.tolist())
+            simulated_active_values.append(pred_step)
+            
+        # Konstruowanie wynikowego zestawu wierszy w formacie słownikowym (JSON)
+        simulated_rows = []
+        for idx, date in enumerate(future_dates):
+            date_str = date.strftime("%Y-%m-%d")
+            row = {"date": date_str, "is_forecast": True}
+            
+            # Wstawienie zmiennych stałych wraz z ich impulsami
+            for col in const_cols:
+                val = const_vals[col]
+                for shock in shocks:
+                    if shock["variable"] == col and shock["delay"] == idx:
+                        val += shock["value"]
+                row[col] = val
+                
+            # Wstawienie zmiennych aktywnych
+            for col_idx, col in enumerate(active_cols):
+                row[col] = float(simulated_active_values[idx][col_idx])
+                
+            simulated_rows.append(row)
+            
+        return simulated_rows
+
