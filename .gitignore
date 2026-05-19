@@ -1,32 +1,88 @@
-# --- Python ---
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-env/
-venv/
-.env
-.pytest_cache/
+# ==============================================================================
+# PROFESSIONAL DUAL-STACK GITIGNORE (Python/FastAPI & React/Node/Vite)
+# ==============================================================================
 
-# --- Node.js (Frontend) ---
-node_modules/
-frontend/node_modules/
-dist/
-dist-ssr/
-*.local
-frontend/dist/
-
-# --- Dane / Cache ---
-data/*.csv
-data/*.parquet
-
-# --- Systemowe / IDE ---
+# --- System & OS Specific ---
 .DS_Store
-.vscode/
-.idea/
+.DS_Store?
+._*
+ehthumbs.db
+Thumbs.db
 *.swp
 *.swo
 
-# --- Inne ---
+# --- IDEs and Editors ---
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.project
+.classpath
+.settings/
+
+# --- Python / FastAPI Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.noserc
+.tox/
+.poetry/
+pip-log.txt
+pip-delete-this-directory.txt
+*.log
+
+# Python Environments
+.venv/
+venv/
+ENV/
+env/
+ActiveState.venv/
+/sdist/
+/develop-eggs/
+/downloads/
+/eggs/
+/.eggs/
+/parts/
+/var/
+/bootstrap.py
+/bin/
+
+# Serialized models and large binary objects
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.onnx
+*.pb
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# --- Node.js / Vite Frontend ---
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+dist-ssr/
+*.local
 .npm
 .eslintcache
+.vite/
+**/.vite/
+
+# --- Local Environment Variables ---
+.env
+.env.*
+!.env.example
+
+# --- Project Specific Data (Optional local raw downloads) ---
+# Ignores raw downloaded data but keeps processed inputs if needed for static deployments
+# **/data/*.parquet
+# **/data/*.json
+# **/data/raw_*.csv
