@@ -17,31 +17,24 @@ class Settings:
         "it_hiring"
     ]
     
-    # Ścieżki absolutne do ładowania danych
-    TARGET_MACOS_PATH: Path = Path("/Users/_k1tasun_/Documents/GitHub/var-forecasting-model/skripts/data/processed_ci_cd_data.csv")
-    WORKSPACE_WINDOWS_PATH: Path = Path("C:/Users/parko/Documents/GitHub/var-forecasting-model/skripts/data/processed_ci_cd_data.csv")
+    # Ścieżka relatywna od głównego katalogu projektu (root) w celu eliminacji hardkodowanych ścieżek bezwzględnych.
+    # Zapobiega to wyciekowi struktury katalogów i zapewnia pełną przenośność cross-platform (macOS/Windows/Linux).
+    PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
+    DEFAULT_CSV_PATH: Path = PROJECT_ROOT / "skripts" / "data" / "processed_ci_cd_data.csv"
     
     @property
     def csv_data_path(self) -> Path:
         """
-        Dynamicznie rozstrzyga ścieżkę do pliku CSV na podstawie systemu operacyjnego i dostępności pliku.
-        Priorytetowo traktuje docelową ścieżkę macOS, przechodząc do środowiska Windows lub lokalnych ścieżek względnych w przypadku jej braku.
+        Dynamicznie rozstrzyga ścieżkę do pliku CSV na podstawie relatywnej struktury projektu.
+        Umożliwia nadpisanie ścieżki za pomocą zmiennej środowiskowej VAR_DATA_PATH w celach testowych/QA.
         """
-        # Najpierw spróbuj ścieżki docelowej dla systemu macOS
-        if self.TARGET_MACOS_PATH.exists():
-            return self.TARGET_MACOS_PATH
+        import os
+        env_path = os.environ.get("VAR_DATA_PATH")
+        if env_path:
+            return Path(env_path)
             
-        # Spróbuj ścieżki środowiska roboczego programisty w systemie Windows
-        if self.WORKSPACE_WINDOWS_PATH.exists():
-            return self.WORKSPACE_WINDOWS_PATH
-            
-        # W ostateczności użyj ścieżki względnej od bieżącego pliku
-        current_dir = Path(__file__).resolve().parent
-        relative_path = current_dir.parent.parent / "skripts" / "data" / "processed_ci_cd_data.csv"
-        if relative_path.exists():
-            return relative_path
-            
-        # Jeśli nie znaleziono żadnych plików, zwróć główną docelową ścieżkę w celu zgłoszenia błędów w dalszych krokach
-        return self.TARGET_MACOS_PATH
+        # Zwracamy w pełni przenośną i niezależną od użytkownika ścieżkę wewnątrz repozytorium
+        return self.DEFAULT_CSV_PATH
 
 settings = Settings()
+

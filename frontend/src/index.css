@@ -305,3 +305,57 @@ body {
     gap: 2rem;
   }
 }
+
+/* ERROR CARD STYLES */
+.loader-error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  padding: 2rem;
+}
+
+.error-card {
+  max-width: 500px;
+  width: 100%;
+  padding: 3rem;
+  text-align: center;
+  border-left: 4px solid #ef4444 !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.4s ease-out;
+}
+
+.error-card h2 {
+  color: #ef4444;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.error-card p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.error-card .add-btn {
+  background: #ef4444;
+  transition: background 0.2s;
+}
+
+.error-card .add-btn:hover {
+  background: #dc2626;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

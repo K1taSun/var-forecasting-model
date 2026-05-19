@@ -5,7 +5,6 @@ import {
 } from 'recharts';
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
-// TODO: Zamień na adres backendu swojego projektu
 const API_URL = 'http://localhost:8000/api';
 
 // Zmienne modelu — dostosowane do rzeczywistych kolumn z backendu (VAR)
@@ -50,25 +49,35 @@ const Dashboard = () => {
   const [originalForecast, setOriginalForecast] = useState([]);
   const [shocks, setShocks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Funkcja pobierająca dane z backendu (opakowana dla łatwego ponawiania prób)
+  const fetchInitialData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const histRes = await axios.get(`${API_URL}/historical-data`);
+      const foreRes = await axios.get(`${API_URL}/forecast`);
+
+      const hData = Array.isArray(histRes.data) ? histRes.data : [];
+      const fData = Array.isArray(foreRes.data) ? foreRes.data : [];
+
+      if (hData.length === 0 && fData.length === 0) {
+        throw new Error('API zwróciło pusty zbiór danych.');
+      }
+
+      setData([...hData, ...fData]);
+      setOriginalForecast(fData);
+    } catch (err) {
+      console.error('Błąd pobierania danych z API:', err);
+      setError(err.message || 'Brak połączenia z backendem prognozującym. Upewnij się, że serwer API jest uruchomiony na porcie 8000.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Pobieranie danych startowych po załadowaniu
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const histRes = await axios.get(`${API_URL}/historical-data`);
-        const foreRes = await axios.get(`${API_URL}/forecast`);
-
-        const hData = Array.isArray(histRes.data) ? histRes.data : [];
-        const fData = Array.isArray(foreRes.data) ? foreRes.data : [];
-
-        setData([...hData, ...fData]);
-        setOriginalForecast(fData);
-      } catch (err) {
-        console.error('Błąd API:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchInitialData();
   }, []);
 
@@ -129,12 +138,28 @@ const Dashboard = () => {
   };
 
   // ─── Stany ładowania i błędu ────────────────────────────────────────────────
-  if (loading) return <div className="loader">Ładowanie modelu...</div>;
+  if (loading) return <div className="loader">Ładowanie modelu prognozującego...</div>;
+
+  if (error) {
+    return (
+      <div className="dashboard loader-error-container">
+        <div className="glass error-card">
+          <h2>⚠️ Błąd krytyczny komunikacji</h2>
+          <p>{error}</p>
+          <button className="add-btn" onClick={fetchInitialData}>Spróbuj ponownie</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!data || data.length === 0) {
     return (
-      <div className="dashboard loader">
-        Błąd: Brak danych do wyświetlenia. Upewnij się, że backend działa.
+      <div className="dashboard loader-error-container">
+        <div className="glass error-card">
+          <h2>⚠️ Brak danych</h2>
+          <p>Model został załadowany, lecz zbiór danych jest pusty.</p>
+          <button className="add-btn" onClick={fetchInitialData}>Przeładuj</button>
+        </div>
       </div>
     );
   }
@@ -199,6 +224,8 @@ const Dashboard = () => {
                   <label>Amplituda ({varCfg.unit || '—'}):</label>
                   <input
                     type="number"
+                    min="-100000"
+                    max="100000"
                     value={s.value}
                     onChange={e => updateShock(s.id, 'value', e.target.value)}
                   />
@@ -207,7 +234,9 @@ const Dashboard = () => {
                 <div className="shock-col">
                   <label>Przesunięcie (t+k):</label>
                   <input
-                    type="number" min="0" max="23"
+                    type="number" 
+                    min="0" 
+                    max="35"
                     value={s.delay}
                     onChange={e => updateShock(s.id, 'delay', e.target.value)}
                   />
@@ -257,23 +286,31 @@ const Dashboard = () => {
                 />
               )}
 
-              {/* Pionowe kreski szoków */}
-              {shocks.map(s => {
+              {/* [POPRAWKA BEZPIECZEŃSTWA] Bezpieczne generowanie pionowych kresek szoków z pełną walidacją daty.
+                  Zapobiega to RangeError: Invalid time value przy próbie wywołania toISOString() na błędnym obiekcie Date. */}
+              {forecastStartKey && shocks.map(s => {
                 const fDate = new Date(forecastStartKey);
+                if (isNaN(fDate.getTime())) return null; // Zabezpieczenie przed Invalid Date
+                
                 fDate.setMonth(fDate.getMonth() + s.delay);
-                const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7);
-                const actualDate = data.find(d => d.date.startsWith(shockDateStr))?.date;
-                const varColor = VARIABLES[s.variable]?.color || '#94a3b8';
+                try {
+                  const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7);
+                  const actualDate = data.find(d => d.date && d.date.startsWith(shockDateStr))?.date;
+                  const varColor = VARIABLES[s.variable]?.color || '#94a3b8';
 
-                return actualDate ? (
-                  <ReferenceLine
-                    key={`shock-${s.id}`}
-                    yAxisId="left"
-                    x={actualDate}
-                    stroke={varColor}
-                    strokeOpacity={0.35}
-                  />
-                ) : null;
+                  return actualDate ? (
+                    <ReferenceLine
+                      key={`shock-${s.id}`}
+                      yAxisId="left"
+                      x={actualDate}
+                      stroke={varColor}
+                      strokeOpacity={0.35}
+                    />
+                  ) : null;
+                } catch (e) {
+                  console.error("Formatowanie daty szoku nie powiodło się:", e);
+                  return null;
+                }
               })}
 
               {/* Linie danych — generowane dynamicznie ze słownika VARIABLES */}

@@ -11,14 +11,22 @@ class CSVDataLoader:
     """
     Obsługuje bezpieczne ładowanie, parsowanie i walidację zbioru danych szeregów czasowych.
     Waliduje schematy strukturalne i zapewnia prawidłowe typy danych przed dalszym przetwarzaniem.
+    [POPRAWKA ARCHITEKTONICZNA] Zawiera pamięć podręczną (cache) opartą na metadanych pliku (mtime, size), 
+    co zapobiega narzutom ciągłego I/O na dysku przy każdym zapytaniu HTTP, jednocześnie wspierając hot-reload.
     """
+    
+    # Zmienne klasowe przechowujące cache w celu unikania ciągłego odczytu I/O i parsowania Pandas
+    _cached_df: pd.DataFrame = None
+    _cached_serializable: List[Dict[str, Any]] = None
+    _cached_mtime: float = None
+    _cached_size: int = None
     
     def __init__(self, file_path: Path):
         self.file_path = file_path
 
     def load_and_validate(self) -> pd.DataFrame:
         """
-        Ładuje plik CSV i uruchamia kompleksowy pakiet walidacyjny.
+        Ładuje plik CSV i przeprowadza pełną walidację lub zwraca dane z cache jeśli plik nie uległ zmianie.
         Zwraca zweryfikowany obiekt pandas DataFrame w przypadku sukcesu.
         Zgłasza:
             FileNotFoundError: Jeśli brakuje pliku CSV.
@@ -31,12 +39,23 @@ class CSVDataLoader:
                 "Zweryfikuj istnienie pliku i uprawnienia do jego odczytu."
             )
             
+        stat = self.file_path.stat()
+        mtime = stat.st_mtime
+        size = stat.st_size
+        
         # 2. Sprawdzenie rozmiaru pliku w celu upewnienia się, że nie ładujemy pustej bazy danych
-        if self.file_path.stat().st_size == 0:
+        if size == 0:
             raise DataValidationError(f"Plik danych CSV w {self.file_path} jest pusty.")
 
+        # [POPRAWKA WYDAJNOŚCIOWA] Jeśli plik na dysku się nie zmienił, zwracamy natychmiast cached DataFrame.
+        # Eliminuje to zbędne operacje I/O oraz parsowanie Pandas na każdym zapytaniu HTTP.
+        if (CSVDataLoader._cached_df is not None and 
+            CSVDataLoader._cached_mtime == mtime and 
+            CSVDataLoader._cached_size == size):
+            return CSVDataLoader._cached_df
+
         try:
-            # Załaduj dane za pomocą pandas, używając parsowania dat do indeksu chronologicznego
+            # Załaduj dane za pomocą pandas
             df = pd.read_csv(self.file_path)
         except Exception as e:
             raise DataValidationError(f"Nie udało się sparsować formatu CSV. Błąd: {str(e)}")
@@ -62,8 +81,6 @@ class CSVDataLoader:
         null_counts = df.isnull().sum()
         columns_with_nulls = null_counts[null_counts > 0]
         if not columns_with_nulls.empty:
-            # Imputuj lub zgłoś błąd. W modelach VAR dla szeregów czasowych, brakujące wartości muszą być zgłoszone lub celowo obsłużone.
-            # Tutaj zgłaszamy błąd, ponieważ wstępnie przetworzone dane CI/CD nie powinny zawierać luk.
             raise DataValidationError(
                 f"Wykryto wartości puste w zbiorze danych: {columns_with_nulls.to_dict()}. "
                 "Modele VAR wymagają kompletnych macierzy bez brakujących kroków."
@@ -79,14 +96,28 @@ class CSVDataLoader:
                     "Analiza autoregresyjna VAR wymaga ściśle numerycznych macierzy wejściowych."
                 )
 
+        # Zapisujemy do pamięci podręcznej i invalidujemy serializable cache
+        CSVDataLoader._cached_df = df
+        CSVDataLoader._cached_mtime = mtime
+        CSVDataLoader._cached_size = size
+        CSVDataLoader._cached_serializable = None
+
         return df
 
     def get_serializable_data(self) -> List[Dict[str, Any]]:
         """
         Ładuje plik CSV i przekształca go w listę JSON odpowiednią do serializacji.
-        Przydatne do zasilania początkowych wykresów i tabel danych po stronie klienta.
+        Wykorzystuje cache w celu ominięcia narzutu mapowania struktur Pandas -> Python list.
         """
         df = self.load_and_validate()
-        # Konwertuj datę na format tekstowy w celu standardowej serializacji do formatu JSON
+        
+        # [POPRAWKA WYDAJNOŚCIOWA] Unikamy kosztownej konwersji Pandas na listę słowników przy każdym zapytaniu
+        if CSVDataLoader._cached_serializable is not None:
+            return CSVDataLoader._cached_serializable
+            
         df_json = df.assign(date=df['date'].dt.strftime('%Y-%m-%d'))
-        return df_json.to_dict(orient='records')
+        serializable = df_json.to_dict(orient='records')
+        CSVDataLoader._cached_serializable = serializable
+        
+        return serializable
+

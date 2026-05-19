@@ -10,7 +10,15 @@ class ForecastingEngine:
     Zarządza obliczeniami prognostycznymi i diagnostyką modelu Vector Autoregression (VAR).
     Dzięki izolacji kolumn stałych (np. ai_investments) zapobiega błędom kolinearności
     w bibliotece statsmodels, zapewniając stabilność działania na każdym zestawie danych.
+    [POPRAWKA ARCHITEKTONICZNA] Zawiera pamięć podręczną dopasowanego modelu (fitted model cache),
+    dynamiczne bezpieczeństwo stopni swobody dla lagów oraz fail-safe univariate drift fallback
+    dla odporności systemu na LinAlgError.
     """
+
+    # Klasowe zmienne pamięci podręcznej (KISS model cache) w celu unikania ponownej estymacji OLS
+    _cached_results = None
+    _cached_fingerprint = None
+    _cached_active_cols = None
 
     def __init__(self, data: pd.DataFrame):
         self.df = data.copy()
@@ -24,12 +32,78 @@ class ForecastingEngine:
         active_cols = []
         const_cols = []
         for col in self.numeric_cols:
-            # Sprawdzenie liczby unikalnych wartości
             if self.df[col].nunique() <= 1:
                 const_cols.append(col)
             else:
                 active_cols.append(col)
         return active_cols, const_cols
+
+    def _get_fitted_model(self, active_cols: List[str]):
+        """
+        [POPRAWKA ARCHITEKTONICZNA] Zwraca dopasowany model VAR z cache lub buduje go na nowo.
+        Zawiera dynamiczną redukcję lagów, zabezpieczając przed stopniami swobody (LinAlgError).
+        """
+        if not active_cols:
+            return None
+            
+        # Sygnatura danych w celu walidacji cache (rozmiar + suma wartości)
+        fingerprint = (len(self.df), float(self.df[active_cols].values.sum()))
+        
+        if (ForecastingEngine._cached_results is not None and 
+            ForecastingEngine._cached_fingerprint == fingerprint and 
+            ForecastingEngine._cached_active_cols == active_cols):
+            return ForecastingEngine._cached_results
+            
+        df_active = self.df[active_cols]
+        neqs = len(active_cols)
+        
+        # Dynamiczny dobór lagów w zależności od liczby obserwacji
+        lag_order = 1
+        for test_lag in [4, 3, 2, 1]:
+            # Wymagane obserwacje > liczba parametrów na równanie (neqs * lag + 1) + bufor bezpieczeństwa
+            needed_obs = neqs * test_lag + 2
+            if len(self.df) - test_lag > needed_obs:
+                lag_order = test_lag
+                break
+                
+        model = VAR(df_active)
+        try:
+            results = model.fit(maxlags=lag_order, ic="aic")
+        except (np.linalg.LinAlgError, ValueError) as e:
+            # W przypadku awarii algebraicznej na wyższych lagach próbujemy ultra-stabilnego lag=1
+            if lag_order > 1:
+                results = model.fit(maxlags=1, ic="aic")
+            else:
+                raise e # Przekazanie do nadrzędnego try-catch w celu aktywacji univariate fallbacku
+                
+        # Zapis do pamięci podręcznej
+        ForecastingEngine._cached_results = results
+        ForecastingEngine._cached_fingerprint = fingerprint
+        ForecastingEngine._cached_active_cols = active_cols
+        
+        return results
+
+    def _run_univariate_fallback(self, active_cols: List[str], steps: int) -> Dict[str, List[float]]:
+        """
+        [POPRAWKA ODPORNOŚCI] Uruchamia niezawodny model dryfu jednowymiarowego (univariate drift).
+        Stosowany jako ostateczna linia obrony przy błędach macierzowych (kolinearność zmiennych).
+        """
+        fallback_data = {}
+        for col in active_cols:
+            series = self.df[col].values
+            if len(series) >= 2:
+                lookback = min(6, len(series) - 1)
+                drift = (series[-1] - series[-1 - lookback]) / lookback
+            else:
+                drift = 0.0
+                
+            col_forecast = []
+            current_val = float(series[-1])
+            for _ in range(steps):
+                current_val += drift
+                col_forecast.append(current_val)
+            fallback_data[col] = col_forecast
+        return fallback_data
 
     def run_forecast(self, steps: int = 12) -> Dict[str, Any]:
         """
@@ -39,10 +113,8 @@ class ForecastingEngine:
         if steps < 1 or steps > 36:
             raise ValueError("Krok prognozy musi mieścić się w przedziale od 1 do 36 miesięcy.")
 
-        # 1. Separacja zmiennych w celu uniknięcia błędów osobliwości macierzy
         active_cols, const_cols = self._detect_constant_columns()
         
-        # 2. Generowanie przyszłych indeksów dat (krok miesięczny na początku miesiąca - Month Start)
         last_date = self.df["date"].max()
         future_dates = pd.date_range(
             start=last_date + pd.DateOffset(months=1),
@@ -55,7 +127,6 @@ class ForecastingEngine:
             "date": future_dates_str
         }
 
-        # 3. Przypisanie stałej wartości dla zidentyfikowanych zmiennych stałych
         for col in const_cols:
             const_val = float(self.df[col].iloc[0])
             forecast_data[col] = [const_val] * steps
@@ -70,54 +141,55 @@ class ForecastingEngine:
             "selected_lags": 0
         }
 
-        # 4. Dopasowanie modelu VAR na aktywnych szeregach czasowych
+        # Dopasowanie i prognoza aktywnych cech
         if active_cols:
-            df_active = self.df[active_cols]
-            
-            # Dobór rzędu opóźnień (k_ar) - domyślnie 2 opóźnienia lub mniejsze, jeśli brak danych
-            max_possible_lags = min(4, len(self.df) // 10)
-            lag_order = max(1, max_possible_lags)
-            
-            # Dopasowanie modelu przy użyciu estymacji KMN (OLS)
-            model = VAR(df_active)
-            results = model.fit(maxlags=lag_order, ic="aic")
-            
-            # Pobranie faktycznego rzędu opóźnień
-            k_ar = results.k_ar
-            
-            # Generowanie prognozy na podstawie ostatnich zaobserwowanych wartości
-            last_values = df_active.values[-k_ar:]
-            forecast_values = results.forecast(last_values, steps=steps)
-            
-            # Mapowanie wygenerowanych wartości prognozy na odpowiednie kolumny
-            for i, col in enumerate(active_cols):
-                forecast_data[col] = forecast_values[:, i].tolist()
+            try:
+                results = self._get_fitted_model(active_cols)
+                if results is None:
+                    raise ValueError("Nie udało się dopasować modelu VAR.")
+                    
+                k_ar = results.k_ar
+                df_active = self.df[active_cols]
+                
+                # Generowanie prognozy
+                last_values = df_active.values[-k_ar:]
+                forecast_values = results.forecast(last_values, steps=steps)
+                
+                for i, col in enumerate(active_cols):
+                    forecast_data[col] = forecast_values[:, i].tolist()
 
-            # Zbieranie metryk jakości dopasowania modelu
-            diagnostics.update({
-                "aic": float(results.aic),
-                "bic": float(results.bic),
-                "selected_lags": int(k_ar),
-                "coefficients": {
-                    col: results.params[col].tolist() for col in active_cols
-                }
-            })
+                diagnostics.update({
+                    "aic": float(results.aic),
+                    "bic": float(results.bic),
+                    "selected_lags": int(k_ar),
+                    "coefficients": {
+                        col: results.params[col].tolist() for col in active_cols
+                    }
+                })
+            except Exception as e:
+                # [POPRAWKA ODPORNOŚCI] Łagodne przejście do fallbacku zamiast rzucenia HTTP 500
+                fallback_data = self._run_univariate_fallback(active_cols, steps)
+                for col in active_cols:
+                    forecast_data[col] = fallback_data[col]
+                
+                diagnostics.update({
+                    "model_type": "Univariate Drift (Fail-Safe Fallback)",
+                    "selected_lags": 0,
+                    "notes": f"Wykryto kolinearność lub niewystarczającą liczbę stopni swobody. Błąd: {str(e)}"
+                })
         else:
-            # W skrajnym przypadku braku zmiennych aktywnych, prognozujemy sam trend płaski
             for col in active_cols:
                 last_val = float(self.df[col].iloc[-1])
                 forecast_data[col] = [last_val] * steps
 
-        # 5. Konwersja tabeli wyników na listę słowników (struktura wierszowa JSON)
         fc_df = pd.DataFrame(forecast_data)
         predictions = fc_df.to_dict(orient="records")
 
-        # 6. Symulacja metadanych wczytanego modelu z dysku (VECM weights) dla zachowania zgodności architektonicznej
+        # Symulacja metadanych wczytanego modelu z dysku (VECM weights) dla zachowania wstecznej zgodności
         weights_info = {}
         weights_path = Path(__file__).resolve().parent.parent.parent / "trained_var_model" / "model" / "vecm_model_weights.npz"
         if weights_path.exists():
             try:
-                # Odczytujemy wymiary wag bez ich pełnego załadowania w celu diagnostycznym
                 with np.load(weights_path, allow_pickle=True) as weights:
                     weights_info = {
                         "loaded_from_disk": True,
@@ -140,12 +212,10 @@ class ForecastingEngine:
     def run_shock_simulation(self, shocks: List[Dict[str, Any]], steps: int = 24) -> List[Dict[str, Any]]:
         """
         Uruchamia symulację prognozy z dynamicznymi impulsami (shocks).
-        Impulsy są dodawane rekurencyjnie krok po kroku w trakcie prognozowania,
-        co pozwala na ich automatyczną propagację przez współczynniki modelu VAR.
+        [POPRAWKA WYDAJNOŚCIOWA] Szoki są indeksowane w słowniku O(1), eliminując złożoność czasową O(N*M).
         """
         active_cols, const_cols = self._detect_constant_columns()
         
-        # Generowanie przyszłych dat (krok miesięczny na początku miesiąca)
         last_date = self.df["date"].max()
         future_dates = pd.date_range(
             start=last_date + pd.DateOffset(months=1),
@@ -153,71 +223,76 @@ class ForecastingEngine:
             freq="MS"
         )
         
-        # Stałe wartości dla cech bez wariancji (np. ai_investments)
         const_vals = {col: float(self.df[col].iloc[0]) for col in const_cols}
         
-        # Fallback w przypadku braku aktywnych zmiennych
-        if not active_cols:
-            simulated_rows = []
-            for idx, date in enumerate(future_dates):
-                row = {"date": date.strftime("%Y-%m-%d"), "is_forecast": True}
-                for col in self.numeric_cols:
-                    val = const_vals.get(col, float(self.df[col].iloc[-1]))
-                    # Zastosowanie ewentualnych impulsów
-                    for s in shocks:
-                        if s["variable"] == col and s["delay"] == idx:
-                            val += s["value"]
-                    row[col] = val
-                simulated_rows.append(row)
-            return simulated_rows
+        # [POPRAWKA WYDAJNOŚCIOWA] Agregacja i indeksowanie szoków O(1) zamiast przeszukiwania list w pętli
+        indexed_shocks = {}
+        for shock in shocks:
+            s_delay = int(shock["delay"])
+            s_var = shock["variable"]
+            s_val = float(shock["value"])
+            if 0 <= s_delay < steps:
+                indexed_shocks.setdefault(s_delay, {}).setdefault(s_var, 0.0)
+                indexed_shocks[s_delay][s_var] += s_val
 
-        # Dopasowanie modelu VAR na aktywnych szeregach czasowych
-        df_active = self.df[active_cols]
-        max_possible_lags = min(4, len(self.df) // 10)
-        lag_order = max(1, max_possible_lags)
-        
-        model = VAR(df_active)
-        results = model.fit(maxlags=lag_order, ic="aic")
-        k_ar = results.k_ar
-        
-        # Pobranie ostatnich wartości historycznych jako punkt wyjściowy prognozy
-        history = df_active.values[-k_ar:].tolist()
         simulated_active_values = []
+        is_fallback_used = False
         
-        # Indeksy kolumn dla szybkich operacji
-        col_to_idx = {col: idx for idx, col in enumerate(active_cols)}
-        
-        # Generowanie prognozy krok po kroku i aplikowanie impulsów
-        for step_idx in range(steps):
-            lag_input = np.array(history[-k_ar:])
-            
-            # Prognozowanie 1 kroku w przód
-            pred_step = results.forecast(lag_input, steps=1)[0]
-            
-            # Aplikowanie impulsów zdefiniowanych dla bieżącego kroku
-            for shock in shocks:
-                var_name = shock["variable"]
-                if shock["delay"] == step_idx and var_name in col_to_idx:
-                    var_idx = col_to_idx[var_name]
-                    pred_step[var_idx] += shock["value"]
-            
-            # Dodanie wyniku kroku do historii dla kolejnych prognoz (rekurencja)
-            history.append(pred_step.tolist())
-            simulated_active_values.append(pred_step)
-            
-        # Konstruowanie wynikowego zestawu wierszy w formacie słownikowym (JSON)
+        if active_cols:
+            df_active = self.df[active_cols]
+            try:
+                results = self._get_fitted_model(active_cols)
+                if results is None:
+                    raise ValueError("Model niedostępny.")
+                    
+                k_ar = results.k_ar
+                history = df_active.values[-k_ar:].tolist()
+                col_to_idx = {col: idx for idx, col in enumerate(active_cols)}
+                
+                # Rekurencyjna prognoza krok po kroku z aplikacją impulsów
+                for step_idx in range(steps):
+                    lag_input = np.array(history[-k_ar:])
+                    pred_step = results.forecast(lag_input, steps=1)[0]
+                    
+                    # Nakładanie szoków na zmienne aktywne
+                    step_shocks = indexed_shocks.get(step_idx, {})
+                    for var_name, shock_val in step_shocks.items():
+                        if var_name in col_to_idx:
+                            var_idx = col_to_idx[var_name]
+                            pred_step[var_idx] += shock_val
+                            
+                    history.append(pred_step.tolist())
+                    simulated_active_values.append(pred_step)
+            except Exception:
+                # [POPRAWKA ODPORNOŚCI] Fail-safe fallback przy symulacji szoków
+                is_fallback_used = True
+                simulated_active_values = [[] for _ in range(steps)]
+                for col in active_cols:
+                    series = df_active[col].values
+                    lookback = min(6, len(series) - 1) if len(series) >= 2 else 0
+                    drift = (series[-1] - series[-1 - lookback]) / lookback if lookback > 0 else 0.0
+                    
+                    current_val = float(series[-1])
+                    for step_idx in range(steps):
+                        pred = current_val + drift
+                        shock_val = indexed_shocks.get(step_idx, {}).get(col, 0.0)
+                        pred += shock_val
+                        simulated_active_values[step_idx].append(pred)
+                        current_val = pred # propagacja rekurencyjna w kolejnych krokach
+        else:
+            simulated_active_values = [[0.0] * len(active_cols) for _ in range(steps)]
+
+        # Konstruowanie wynikowego zestawu wierszy
         simulated_rows = []
         for idx, date in enumerate(future_dates):
             date_str = date.strftime("%Y-%m-%d")
             row = {"date": date_str, "is_forecast": True}
             
-            # Wstawienie zmiennych stałych wraz z ich impulsami
+            # Wstawienie zmiennych stałych wraz z ich impulsami (z indeksu O(1))
             for col in const_cols:
                 val = const_vals[col]
-                for shock in shocks:
-                    if shock["variable"] == col and shock["delay"] == idx:
-                        val += shock["value"]
-                row[col] = val
+                shock_val = indexed_shocks.get(idx, {}).get(col, 0.0)
+                row[col] = val + shock_val
                 
             # Wstawienie zmiennych aktywnych
             for col_idx, col in enumerate(active_cols):
@@ -226,4 +301,3 @@ class ForecastingEngine:
             simulated_rows.append(row)
             
         return simulated_rows
-
