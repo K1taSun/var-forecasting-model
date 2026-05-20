@@ -18,27 +18,58 @@ const VARIABLES = {
 // Gotowe scenariusze szoków — rzeczywiste symulacje makroekonomiczne i sektorowe
 const PRESETS = {
   preset_1: {
-    name: '🚀 Boom Inwestycyjny AI',
-    desc: 'Gwałtowny wzrost inwestycji w AI o 15 mln USD, po którym następuje wzrost przychodów IT.',
+    name: '🚀 Boom AI z Korektami',
+    desc: 'Silny wzrost inwestycji przerywany gwałtownymi korektami. Widoczna nieliniowość na przestrzeni ponad roku.',
     shocks: [
-      { id: 1, variable: 'ai_investments', value: 15, delay: 0 },
-      { id: 2, variable: 'it_earnings', value: 1000, delay: 3 },
+      { id: 1, variable: 'ai_investments', value: 800, delay: 1 },
+      { id: 2, variable: 'ai_investments', value: -400, delay: 5 },
+      { id: 3, variable: 'it_earnings', value: 8000, delay: 8 },
+      { id: 4, variable: 'it_earnings', value: -3000, delay: 12 },
+      { id: 5, variable: 'ai_investments', value: 1200, delay: 15 },
     ]
   },
   preset_2: {
-    name: '📉 Szok Inflacyjny',
-    desc: 'Wzrost inflacji CPI o 3.0 punkty procentowe, wywołujący spowolnienie rekrutacji w sektorze IT.',
+    name: '📉 Huśtawka Inflacyjna',
+    desc: 'Wysoka zmienność inflacji: szybkie wzrosty i nagłe spadki, brutalnie rzutujące na rekrutację i zyski IT.',
     shocks: [
-      { id: 1, variable: 'cpi_inflation', value: 3.0, delay: 0 },
-      { id: 2, variable: 'it_hiring', value: -50, delay: 2 },
+      { id: 10, variable: 'cpi_inflation', value: 3.5, delay: 1 },
+      { id: 11, variable: 'cpi_inflation', value: -2.0, delay: 6 },
+      { id: 12, variable: 'cpi_inflation', value: 4.0, delay: 10 },
+      { id: 13, variable: 'it_hiring', value: -80, delay: 13 },
+      { id: 14, variable: 'it_earnings', value: -6000, delay: 15 },
     ]
   },
   preset_3: {
-    name: '📈 Dynamiczny Rozwój IT',
-    desc: 'Skokowy wzrost zatrudnienia w branży IT o 50 punktów, stymulujący długofalowe przychody.',
+    name: '🎢 Niestabilny Rynek (Rollercoaster)',
+    desc: 'Naprzemienne fale masowych zatrudnień i zwolnień wraz z ogromnymi skokami przychodów w ciągu 15 miesięcy.',
     shocks: [
-      { id: 1, variable: 'it_hiring', value: 50, delay: 0 },
-      { id: 2, variable: 'it_earnings', value: 2000, delay: 6 },
+      { id: 20, variable: 'it_hiring', value: 60, delay: 2 },
+      { id: 21, variable: 'it_earnings', value: 7000, delay: 4 },
+      { id: 22, variable: 'it_hiring', value: -90, delay: 9 },
+      { id: 23, variable: 'it_earnings', value: -10000, delay: 12 },
+      { id: 24, variable: 'it_hiring', value: 120, delay: 15 },
+    ]
+  },
+  preset_4: {
+    name: '⚠️ Kryzys i Nagłe Odbicie',
+    desc: 'Głęboka recesja technologiczna w pierwszych miesiącach, po której następuje wstrząsowy powrót hossy.',
+    shocks: [
+      { id: 30, variable: 'ai_investments', value: -600, delay: 1 },
+      { id: 31, variable: 'it_hiring', value: -100, delay: 5 },
+      { id: 32, variable: 'cpi_inflation', value: 2.5, delay: 8 },
+      { id: 33, variable: 'ai_investments', value: 1500, delay: 13 },
+      { id: 34, variable: 'it_earnings', value: 12000, delay: 15 },
+    ]
+  },
+  preset_5: {
+    name: '🌐 Szok Makroekonomiczny',
+    desc: 'Ekstremalne wahania makro: nagły skok cen, uderzenie w zyski, a następnie potężna deflacja i odbicie AI.',
+    shocks: [
+      { id: 40, variable: 'cpi_inflation', value: 5.0, delay: 2 },
+      { id: 41, variable: 'it_earnings', value: -8000, delay: 4 },
+      { id: 42, variable: 'cpi_inflation', value: -6.0, delay: 9 },
+      { id: 43, variable: 'ai_investments', value: 1000, delay: 12 },
+      { id: 44, variable: 'it_hiring', value: 90, delay: 15 },
     ]
   },
 };
@@ -358,21 +389,21 @@ const Dashboard = () => {
       <section className="methodology-section glass">
         <div className="method-grid">
           <div className="method-col">
-            <h4>Aparat Analityczny</h4>
-            <p>Model prognozujący bazuje na rygorystycznym podejściu ekonometrycznym szeregów czasowych:</p>
+            <h4>🧠 Zaawansowany Aparat Analityczny</h4>
+            <p>Silnik prognostyczny wykorzystuje najnowocześniejsze metody analizy wielowymiarowych szeregów czasowych, oferując precyzję na poziomie instytucjonalnym:</p>
             <ul>
-              <li><strong>Model Wektorowej Autoregresji (VAR):</strong> Analizuje dynamiczne sprzężenia zwrotne i relacje między wszystkimi czterema zmiennymi jednocześnie.</li>
-              <li><strong>Automatyczny dobór opóźnień (AIC):</strong> Serwis dynamicznie dobiera optymalną liczbę opóźnień (lags), maksymalizując zdolności predykcyjne modelu przy minimalnym przeuczeniu.</li>
-              <li><strong>Symulacja Shock-Testing (IRF):</strong> Umożliwia ręczną i automatyczną symulację impulsów, propagujących się rekurencyjnie przez model.</li>
+              <li><strong>Model Wektorowej Autoregresji (VAR):</strong> Ekonometryczny silnik mapujący wielokierunkowe, nieliniowe sprzężenia zwrotne pomiędzy wskaźnikami makroekonomicznymi a kondycją sektora IT.</li>
+              <li><strong>Algorytmiczna Optymalizacja (AIC):</strong> Zautomatyzowany dobór rzędu opóźnień (lags) minimalizujący błąd predykcji i chroniący model przed zjawiskiem przeuczenia (overfitting).</li>
+              <li><strong>Analiza Impulsów (IRF - Impulse Response Function):</strong> Narzędzie symulacyjne pozwalające na rygorystyczne testy warunków skrajnych (stress-testing) i badanie dynamicznej propagacji szoków rynkowych w czasie.</li>
             </ul>
           </div>
           <div className="method-col">
-            <h4>Architektura Systemu</h4>
-            <p>Nowoczesna i wysoce decoupled struktura aplikacji zapewnia skalowalność i bezbłędne działanie:</p>
+            <h4>⚙️ Architektura Systemu (Decoupled)</h4>
+            <p>Rozwiązanie oparto na nowoczesnym, modularnym stosie technologicznym, gwarantującym asynchroniczną i błyskawiczną realizację obliczeń:</p>
             <ul>
-              <li><strong>Źródła Danych:</strong> Dane historyczne (2015-2026) zasilające model pobierane są automatycznie ze źródeł Yahoo Finance oraz Banku Światowego.</li>
-              <li><strong>Backend (FastAPI):</strong> Wykorzystuje bibliotekę <code>statsmodels</code> do obliczeń VAR, ułatwiając obsługę żądań deweloperskich i produkcyjnych.</li>
-              <li><strong>Frontend (React + Recharts):</strong> Zapewnia błyskawiczne, interaktywne renderowanie wykresów w czasie rzeczywistym bezpośrednio po przeliczeniu symulacji.</li>
+              <li><strong>Zautomatyzowane Źródła Danych (ETL):</strong> W pełni autonomiczne agregowanie potężnych zbiorów historycznych (2015-2026) z globalnych parkietów (Yahoo Finance) oraz baz Banku Światowego.</li>
+              <li><strong>Wysokowydajny Backend (FastAPI):</strong> Asynchroniczny serwer analityczny w Pythonie napędzany biblioteką <code>statsmodels</code>, przeliczający ciężkie modele ekonometryczne w ułamkach sekund.</li>
+              <li><strong>Interaktywny Frontend (React + Recharts):</strong> Błyskawiczna prezentacja macierzy wyników na dynamicznych i płynnych wykresach renderowanych prosto w przeglądarce klienta.</li>
             </ul>
           </div>
         </div>
