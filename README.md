@@ -11,7 +11,7 @@ Profesjonalny system prognozowania wskaźników rynkowych i makroekonomicznych w
 
 Projekt jest zorganizowany w architekturze modułowej:
 
-*   **`skripts/`** – Moduł pobierania i przetwarzania danych ([data_fetcher.py](file:///Users/_k1tasun_/Documents/GitHub/var-forecasting-model/skripts/data_fetcher.py)). Pobiera dane z Yahoo Finance oraz API Banku Światowego, integruje je oraz oblicza zmienne syntetyczne.
+*   **`scripts/`** – Moduł pobierania i przetwarzania danych ([data_fetcher.py](file:///Users/_k1tasun_/Documents/GitHub/var-forecasting-model/scripts/data_fetcher.py)). Pobiera dane z Yahoo Finance oraz API Banku Światowego, integruje je oraz oblicza zmienne syntetyczne.
 *   **`trained_var_model/`** – Przechowuje wytrenowany model prognozy (plik `trained_var_model.pkl`) oraz notebooki integracyjne z Google Colab.
 *   **`frontend/`** – Aplikacja kliencka React + Vite odpowiedzialna za interaktywną prezentację prognoz i analizę historyczną.
 *   **`backend/`** – API serwerowe obsługujące serwowanie predykcji modelu (w trakcie implementacji).
@@ -26,6 +26,6 @@ Projekt jest zorganizowany w architekturze modułowej:
    ```
 2. Uruchom skrypt pobierający i agregujący dane:
    ```bash
-   python skripts/data_fetcher.py
+   python scripts/data_fetcher.py
    ```
-   *Wynikowy plik zostanie zapisany w lokalizacji: `skripts/data/processed_ci_cd_data.csv`*
+   *Wynikowy plik zostanie zapisany w lokalizacji: `scripts/data/processed_ci_cd_data.csv`*

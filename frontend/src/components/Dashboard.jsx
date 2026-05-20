@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from 'recharts';
 
 // ─── KONFIGURACJA ──────────────────────────────────────────────────────────────
@@ -261,74 +261,96 @@ const Dashboard = () => {
       {/* Wykres */}
       <div className="chart-panel glass">
         <h3>Symulacja prognostyczna i analiza impulsów</h3>
-        <div style={{ width: '100%', height: 400 }}>
-          <ResponsiveContainer>
-            <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.05} />
-              <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 11 }} />
-              <YAxis yAxisId="left"  tick={{ fill: '#64748b' }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748b' }} />
+        <div className="charts-grid">
+          {Object.entries(VARIABLES).map(([key, cfg]) => {
+            // Wyznaczamy ostatnią dostępną wartość
+            const latestValue = data.length > 0 ? data[data.length - 1][key] : null;
+            const formattedVal = latestValue !== null ? latestValue.toFixed(2) : '—';
+            
+            return (
+              <div key={key} className="individual-chart-card">
+                <div className="chart-header-row">
+                  <h4>
+                    <span style={{ color: cfg.color }}>●</span> {cfg.label}
+                  </h4>
+                  <span className="chart-val-badge" style={{ borderLeft: `3px solid ${cfg.color}` }}>
+                    {formattedVal} {cfg.unit}
+                  </span>
+                </div>
+                <div style={{ width: '100%', height: 260 }}>
+                  <ResponsiveContainer>
+                    <AreaChart data={data} syncId="var-forecast-sync" margin={{ top: 15, right: 15, left: 0, bottom: 5 }}>
+                      <defs>
+                        <linearGradient id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={cfg.color} stopOpacity={0.25}/>
+                          <stop offset="95%" stopColor={cfg.color} stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" opacity={0.05} />
+                      <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} />
+                      <YAxis 
+                        tick={{ fill: '#64748b', fontSize: 10 }} 
+                        domain={['auto', 'auto']}
+                        width={50}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
+                        itemStyle={{ fontSize: '12px', color: '#f8fafc' }}
+                        labelStyle={{ fontSize: '11px', color: '#64748b' }}
+                        formatter={(value) => [`${value.toFixed(2)} ${cfg.unit}`, cfg.label]}
+                      />
+                      
+                      {/* Pionowa kreska: granica historii i prognozy */}
+                      {forecastStartKey && (
+                        <ReferenceLine
+                          x={forecastStartKey}
+                          stroke="#334155"
+                          strokeDasharray="4 4"
+                          label={{ position: 'top', value: 'PROGNOZA', fill: '#64748b', fontSize: 8, letterSpacing: '1px' }}
+                        />
+                      )}
 
-              <Tooltip
-                contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                itemStyle={{ fontSize: '13px' }}
-              />
-              <Legend verticalAlign="top" height={36} iconType="circle" />
+                      {/* Linie pionowe szoków */}
+                      {forecastStartKey && shocks.map(s => {
+                        const fDate = new Date(forecastStartKey);
+                        if (isNaN(fDate.getTime())) return null;
+                        
+                        fDate.setMonth(fDate.getMonth() + s.delay);
+                        try {
+                          const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7);
+                          const actualDate = data.find(d => d.date && d.date.startsWith(shockDateStr))?.date;
+                          const varColor = VARIABLES[s.variable]?.color || '#94a3b8';
 
-              {/* Pionowa kreska: granica historii i prognozy */}
-              {forecastStartKey && (
-                <ReferenceLine
-                  yAxisId="left"
-                  x={forecastStartKey}
-                  stroke="#334155"
-                  strokeDasharray="4 4"
-                  label={{ position: 'top', value: 'PROGNOZA', fill: '#64748b', fontSize: 10, letterSpacing: '1px' }}
-                />
-              )}
+                          return actualDate ? (
+                            <ReferenceLine
+                              key={`shock-${s.id}`}
+                              x={actualDate}
+                              stroke={varColor}
+                              strokeOpacity={0.4}
+                              strokeWidth={1.5}
+                            />
+                          ) : null;
+                        } catch (e) {
+                          return null;
+                        }
+                      })}
 
-              {/* [POPRAWKA BEZPIECZEŃSTWA] Bezpieczne generowanie pionowych kresek szoków z pełną walidacją daty.
-                  Zapobiega to RangeError: Invalid time value przy próbie wywołania toISOString() na błędnym obiekcie Date. */}
-              {forecastStartKey && shocks.map(s => {
-                const fDate = new Date(forecastStartKey);
-                if (isNaN(fDate.getTime())) return null; // Zabezpieczenie przed Invalid Date
-                
-                fDate.setMonth(fDate.getMonth() + s.delay);
-                try {
-                  const shockDateStr = fDate.toISOString().split('T')[0].substring(0, 7);
-                  const actualDate = data.find(d => d.date && d.date.startsWith(shockDateStr))?.date;
-                  const varColor = VARIABLES[s.variable]?.color || '#94a3b8';
-
-                  return actualDate ? (
-                    <ReferenceLine
-                      key={`shock-${s.id}`}
-                      yAxisId="left"
-                      x={actualDate}
-                      stroke={varColor}
-                      strokeOpacity={0.35}
-                    />
-                  ) : null;
-                } catch (e) {
-                  console.error("Formatowanie daty szoku nie powiodło się:", e);
-                  return null;
-                }
-              })}
-
-              {/* Linie danych — generowane dynamicznie ze słownika VARIABLES */}
-              {Object.entries(VARIABLES).map(([key, cfg]) => (
-                <Line
-                  key={key}
-                  yAxisId={cfg.axis}
-                  type="monotone"
-                  dataKey={key}
-                  name={cfg.label}
-                  stroke={cfg.color}
-                  dot={false}
-                  strokeWidth={2}
-                  isAnimationActive={true}
-                />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+                      <Area
+                        type="monotone"
+                        dataKey={key}
+                        name={cfg.label}
+                        stroke={cfg.color}
+                        fill={`url(#grad-${key})`}
+                        strokeWidth={2}
+                        dot={false}
+                        isAnimationActive={true}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

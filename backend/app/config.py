@@ -20,7 +20,7 @@ class Settings:
     # Ścieżka relatywna od głównego katalogu projektu (root) w celu eliminacji hardkodowanych ścieżek bezwzględnych.
     # Zapobiega to wyciekowi struktury katalogów i zapewnia pełną przenośność cross-platform (macOS/Windows/Linux).
     PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent.parent
-    DEFAULT_CSV_PATH: Path = PROJECT_ROOT / "skripts" / "data" / "processed_ci_cd_data.csv"
+    DEFAULT_CSV_PATH: Path = PROJECT_ROOT / "scripts" / "data" / "processed_ci_cd_data.csv"
     
     @property
     def csv_data_path(self) -> Path:
